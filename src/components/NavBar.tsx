@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navLinks = [
-  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Home" },
   { href: "/books", label: "Books" },
   { href: "/nominations", label: "Vote" },
   { href: "/meetings", label: "Meetings" },
@@ -31,7 +31,7 @@ export default function NavBar() {
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setMemberName(null);
-    router.push("/login");
+    router.push("/");
   };
 
   return (
@@ -44,11 +44,11 @@ export default function NavBar() {
     >
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link
-          href="/"
+          href="/dashboard"
           className="text-white text-xl font-bold tracking-wide"
           style={{ fontFamily: "Georgia, serif" }}
         >
-          📚 Book Club
+          Book Club
         </Link>
 
         {/* Desktop nav */}
@@ -81,7 +81,7 @@ export default function NavBar() {
             </>
           ) : (
             <Link
-              href="/login"
+              href="/"
               className="text-white/80 hover:text-white text-sm underline"
             >
               Sign in
