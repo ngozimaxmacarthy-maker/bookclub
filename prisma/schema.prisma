@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Member {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  ratings             Rating[]
+  discussionQuestions DiscussionQuestion[]
+  availabilityPolls   AvailabilityResponse[]
+  bookNominations     BookNomination[]
+  bookVotes           BookVote[]
+  hostedMeetings      Meeting[]              @relation("Host")
+  hostRotation        HostRotation?
+}
+
+model Book {
+  id          String     @id @default(cuid())
+  title       String
+  author      String
+  genre       String?
+  coverUrl    String?
+  description String?
+  status      BookStatus @default(UPCOMING)
+
+  libbySUrl    String?
+  kindleUrl    String?
+  amazonUrl    String?
+  bookshopUrl  String?
+  reviewLinks  String? // JSON array of {label, url}
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  meetings            Meeting[]
+  ratings             Rating[]
+  discussionQuestions DiscussionQuestion[]
+}
+
+enum BookStatus {
+  UPCOMING
+  CURRENT
+  COMPLETED
+}
+
+model BookNomination {
+  id          String   @id @default(cuid())
+  title       String
+  author      String
+  genre       String?
+  description String?
+  nominatedBy String
+  member      Member   @relation(fields: [nominatedBy], references: [name])
+  createdAt   DateTime @default(now())
+
+  votes BookVote[]
+}
+
+model BookVote {
+  id           String         @id @default(cuid())
+  nominationId String
+  nomination   BookNomination @relation(fields: [nominationId], references: [id], onDelete: Cascade)
+  voterName    String
+  member       Member         @relation(fields: [voterName], references: [name])
+  createdAt    DateTime       @default(now())
+
+  @@unique([nominationId, voterName])
+}
+
+model Meeting {
+  id                   String        @id @default(cuid())
+  bookId               String
+  book                 Book          @relation(fields: [bookId], references: [id])
+  scheduledDate        DateTime?
+  location             String?
+  locationNotes        String?
+  locationAccessibility String?
+  hostName             String?
+  host                 Member?       @relation("Host", fields: [hostName], references: [name])
+  status               MeetingStatus @default(SCHEDULED)
+  createdAt            DateTime      @default(now())
+
+  availabilityPolls AvailabilityPoll[]
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model AvailabilityPoll {
+  id             String    @id @default(cuid())
+  meetingId      String
+  meeting        Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  proposedDates  String // JSON array of ISO date strings
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  responses AvailabilityResponse[]
+}
+
+model AvailabilityResponse {
+  id             String           @id @default(cuid())
+  pollId         String
+  poll           AvailabilityPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  memberName     String
+  member         Member           @relation(fields: [memberName], references: [name])
+  availableDates String // JSON array of ISO date strings
+  createdAt      DateTime         @default(now())
+
+  @@unique([pollId, memberName])
+}
+
+model DiscussionQuestion {
+  id          String   @id @default(cuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  question    String
+  submittedBy String
+  member      Member   @relation(fields: [submittedBy], references: [name])
+  createdAt   DateTime @default(now())
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  bookId     String
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  memberName String
+  member     Member   @relation(fields: [memberName], references: [name])
+  rating     Int // 1-5
+  review     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([bookId, memberName])
+}
+
+model HostRotation {
+  id           String   @id @default(cuid())
+  memberName   String   @unique
+  member       Member   @relation(fields: [memberName], references: [name])
+  order        Int
+  optOut       Boolean  @default(false)
+  lastHostedAt DateTime?
+  updatedAt    DateTime @updatedAt
+}
