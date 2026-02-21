@@ -33,7 +33,7 @@ export default function NavBar() {
   }
 
   return (
-    <nav style={{ background: "var(--primary)" }}>
+    <nav style={{ background: "var(--nav-bg)" }}>
       <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
         <Link
           href="/dashboard"

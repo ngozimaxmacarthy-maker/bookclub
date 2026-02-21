@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const books = await sql`
     SELECT b.*,
-      COALESCE(AVG(r.score), 0) AS avg_rating,
+      COALESCE(AVG(r.rating), 0) AS avg_rating,
       COUNT(DISTINCT r.id) AS rating_count
     FROM books b
     LEFT JOIN ratings r ON r.book_id = b.id

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (status) {
     books = await sql`
       SELECT b.*,
-        COALESCE(AVG(r.score), 0) AS avg_rating,
+        COALESCE(AVG(r.rating), 0) AS avg_rating,
         COUNT(DISTINCT r.id) AS rating_count,
         COUNT(DISTINCT dq.id) AS question_count
       FROM books b
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   } else {
     books = await sql`
       SELECT b.*,
-        COALESCE(AVG(r.score), 0) AS avg_rating,
+        COALESCE(AVG(r.rating), 0) AS avg_rating,
         COUNT(DISTINCT r.id) AS rating_count,
         COUNT(DISTINCT dq.id) AS question_count
       FROM books b
@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
 
   const sql = getDb();
   const rows = await sql`
-    INSERT INTO books (title, author, genre, cover_url, libby_url, amazon_url, kindle_url, bookshop_url, added_by)
-    VALUES (${title}, ${author}, ${genre || null}, ${coverUrl || null}, ${libbyUrl || null}, ${amazonUrl || null}, ${kindleUrl || null}, ${bookshopUrl || null}, ${session.memberName})
+    INSERT INTO books (title, author, genre, cover_url, libby_url, amazon_url, kindle_url, bookshop_url)
+    VALUES (${title}, ${author}, ${genre || null}, ${coverUrl || null}, ${libbyUrl || null}, ${amazonUrl || null}, ${kindleUrl || null}, ${bookshopUrl || null})
     RETURNING *
   `;
 

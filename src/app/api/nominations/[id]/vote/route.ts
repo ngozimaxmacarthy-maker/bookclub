@@ -13,16 +13,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   // Toggle vote
   const existing = await sql`
-    SELECT id FROM book_votes WHERE nomination_id = ${id} AND member_name = ${session.memberName}
+    SELECT id FROM book_votes WHERE nomination_id = ${id} AND voter_name = ${session.memberName}
   `;
 
   if (existing.length > 0) {
-    await sql`DELETE FROM book_votes WHERE nomination_id = ${id} AND member_name = ${session.memberName}`;
+    await sql`DELETE FROM book_votes WHERE nomination_id = ${id} AND voter_name = ${session.memberName}`;
     return NextResponse.json({ voted: false });
   }
 
   await sql`
-    INSERT INTO book_votes (nomination_id, member_name) VALUES (${id}, ${session.memberName})
+    INSERT INTO book_votes (nomination_id, voter_name) VALUES (${id}, ${session.memberName})
   `;
   return NextResponse.json({ voted: true });
 }

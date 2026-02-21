@@ -7,10 +7,9 @@ export async function GET() {
   const nominations = await sql`
     SELECT bn.*,
       COUNT(DISTINCT bv.id) AS vote_count,
-      COALESCE(json_agg(bv.member_name) FILTER (WHERE bv.id IS NOT NULL), '[]') AS voters
+      COALESCE(json_agg(bv.voter_name) FILTER (WHERE bv.id IS NOT NULL), '[]') AS voters
     FROM book_nominations bn
     LEFT JOIN book_votes bv ON bv.nomination_id = bn.id
-    WHERE bn.is_active = true
     GROUP BY bn.id
     ORDER BY vote_count DESC, bn.created_at ASC
   `;
@@ -23,15 +22,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { title, author, reason } = await req.json();
+  const { title, author, description } = await req.json();
   if (!title || !author) {
     return NextResponse.json({ error: "Title and author required" }, { status: 400 });
   }
 
   const sql = getDb();
   const rows = await sql`
-    INSERT INTO book_nominations (title, author, reason, nominated_by)
-    VALUES (${title}, ${author}, ${reason || null}, ${session.memberName})
+    INSERT INTO book_nominations (title, author, description, nominated_by)
+    VALUES (${title}, ${author}, ${description || null}, ${session.memberName})
     RETURNING *
   `;
 

@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest) {
   const rows = await sql`
     UPDATE host_rotations SET
       opt_out = COALESCE(${optOut !== undefined ? optOut : null}, opt_out),
-      last_hosted_date = COALESCE(${lastHostedDate || null}, last_hosted_date)
+      last_hosted_at = COALESCE(${lastHostedDate || null}, last_hosted_at)
     WHERE id = ${id}
     RETURNING *
   `;

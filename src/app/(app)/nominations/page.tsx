@@ -9,7 +9,7 @@ export default function NominationsPage() {
   const { data: nominations } = useSWR("/api/nominations", fetcher);
   const { data: me } = useSWR("/api/auth/me", fetcher);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ title: "", author: "", reason: "" });
+  const [form, setForm] = useState({ title: "", author: "", description: "" });
   const [submitting, setSubmitting] = useState(false);
 
   async function handleNominate(e: React.FormEvent) {
@@ -20,7 +20,7 @@ export default function NominationsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setForm({ title: "", author: "", reason: "" });
+    setForm({ title: "", author: "", description: "" });
     setShowAdd(false);
     setSubmitting(false);
     mutate("/api/nominations");
@@ -29,16 +29,6 @@ export default function NominationsPage() {
   async function toggleVote(nomId: string) {
     await fetch(`/api/nominations/${nomId}/vote`, { method: "POST" });
     mutate("/api/nominations");
-  }
-
-  if (!me?.loggedIn) {
-    return (
-      <div className="text-center py-12">
-        <p style={{ color: "var(--muted)" }}>
-          Please <a href="/" className="underline" style={{ color: "var(--primary)" }}>sign in</a> to vote on book nominations.
-        </p>
-      </div>
-    );
   }
 
   return (
@@ -64,7 +54,7 @@ export default function NominationsPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold">Why this book? (optional)</label>
-            <textarea className="input" rows={2} value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+            <textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
           <button type="submit" className="btn-primary text-sm self-start" disabled={submitting}>
             {submitting ? "Submitting..." : "Submit Nomination"}
@@ -84,7 +74,7 @@ export default function NominationsPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {nominations.map((nom: { id: string; title: string; author: string; reason: string; nominated_by: string; vote_count: number; voters: string[] }, idx: number) => {
+          {nominations.map((nom: { id: string; title: string; author: string; description: string; nominated_by: string; vote_count: number; voters: string[] }, idx: number) => {
             const hasVoted = nom.voters?.includes(me?.memberName);
             return (
               <div key={nom.id} className="card flex items-start gap-4">
@@ -113,7 +103,7 @@ export default function NominationsPage() {
                     <h3 className="font-bold">{nom.title}</h3>
                   </div>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>by {nom.author}</p>
-                  {nom.reason && <p className="text-sm mt-1">{nom.reason}</p>}
+                  {nom.description && <p className="text-sm mt-1">{nom.description}</p>}
                   <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>Nominated by {nom.nominated_by}</p>
                 </div>
               </div>
