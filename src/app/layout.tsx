@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen font-sans" style={{ background: "var(--background)" }}>
+      <body suppressHydrationWarning className="min-h-screen font-sans" style={{ background: "var(--background)" }}>
         {children}
       </body>
     </html>
