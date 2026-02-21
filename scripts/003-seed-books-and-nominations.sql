@@ -1,14 +1,14 @@
 -- Seed the 9 books from the club's history
 INSERT INTO books (title, author, genre, status) VALUES
-  ('Intermezzo', 'Sally Rooney', 'Literary Fiction', 'completed'),
-  ('A Court of Thorns and Roses', 'Sarah J. Maas', 'Fantasy Romance', 'completed'),
-  ('My Year of Rest and Relaxation', 'Ottessa Moshfegh', 'Literary Fiction', 'completed'),
-  ('The Women', 'Kristin Hannah', 'Historical Fiction', 'completed'),
-  ('Remarkably Bright Creatures', 'Shelby Van Pelt', 'Contemporary Fiction', 'completed'),
-  ('Demon Copperhead', 'Barbara Kingsolver', 'Literary Fiction', 'completed'),
-  ('Tomorrow and Tomorrow and Tomorrow', 'Gabrielle Zevin', 'Literary Fiction', 'completed'),
-  ('The Housemaid', 'Freida McFadden', 'Thriller', 'completed'),
-  ('Lessons in Chemistry', 'Bonnie Garmus', 'Historical Fiction', 'completed')
+  ('Intermezzo', 'Sally Rooney', 'Literary Fiction', 'COMPLETED'),
+  ('A Court of Thorns and Roses', 'Sarah J. Maas', 'Fantasy Romance', 'COMPLETED'),
+  ('My Year of Rest and Relaxation', 'Ottessa Moshfegh', 'Literary Fiction', 'COMPLETED'),
+  ('The Women', 'Kristin Hannah', 'Historical Fiction', 'COMPLETED'),
+  ('Remarkably Bright Creatures', 'Shelby Van Pelt', 'Contemporary Fiction', 'COMPLETED'),
+  ('Demon Copperhead', 'Barbara Kingsolver', 'Literary Fiction', 'COMPLETED'),
+  ('Tomorrow and Tomorrow and Tomorrow', 'Gabrielle Zevin', 'Literary Fiction', 'COMPLETED'),
+  ('The Housemaid', 'Freida McFadden', 'Thriller', 'COMPLETED'),
+  ('Lessons in Chemistry', 'Bonnie Garmus', 'Historical Fiction', 'COMPLETED')
 ON CONFLICT DO NOTHING;
 
 -- Seed the December 2025 nomination round
