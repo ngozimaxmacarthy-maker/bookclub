@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getMemberName } from "@/lib/session";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
-  const name = await getMemberName();
-  if (!name) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+  const session = await getSession();
+  if (!session.isLoggedIn || !session.memberName) {
+    return NextResponse.json({ loggedIn: false });
   }
-  return NextResponse.json({ authenticated: true, name });
+  return NextResponse.json({ loggedIn: true, memberName: session.memberName });
 }

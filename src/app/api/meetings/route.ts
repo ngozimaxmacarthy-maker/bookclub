@@ -1,40 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
-  const meetings = await prisma.meeting.findMany({
-    include: {
-      book: true,
-      availabilityPolls: {
-        include: { responses: true },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
-    orderBy: { scheduledDate: "desc" },
-  });
-
+  const sql = getDb();
+  const meetings = await sql`
+    SELECT m.*, b.title AS book_title, b.author AS book_author, b.cover_url AS book_cover_url
+    FROM meetings m
+    LEFT JOIN books b ON b.id = m.book_id
+    ORDER BY m.scheduled_date DESC
+  `;
   return NextResponse.json(meetings);
 }
 
 export async function POST(req: NextRequest) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const body = await req.json();
+  const { bookId, scheduledDate, location, locationAddress, locationNotes, locationAccessibility, hostName } = body;
 
-  const meeting = await prisma.meeting.create({
-    data: {
-      bookId: body.bookId,
-      scheduledDate: body.scheduledDate ? new Date(body.scheduledDate) : null,
-      location: body.location ?? null,
-      locationNotes: body.locationNotes ?? null,
-      locationAccessibility: body.locationAccessibility ?? null,
-      hostName: body.hostName ?? null,
-    },
-    include: { book: true },
-  });
+  if (!bookId || !scheduledDate) {
+    return NextResponse.json({ error: "Book and date required" }, { status: 400 });
+  }
 
-  return NextResponse.json(meeting);
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO meetings (book_id, scheduled_date, location, location_address, location_notes, location_accessibility, host_name)
+    VALUES (${bookId}, ${scheduledDate}, ${location || null}, ${locationAddress || null}, ${locationNotes || null}, ${locationAccessibility || null}, ${hostName || null})
+    RETURNING *
+  `;
+
+  return NextResponse.json(rows[0], { status: 201 });
 }

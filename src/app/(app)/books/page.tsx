@@ -1,350 +1,193 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR, { mutate } from "swr";
 import Link from "next/link";
+import { useState } from "react";
 
-interface Book {
-  id: string;
-  title: string;
-  author: string;
-  genre: string | null;
-  coverUrl: string | null;
-  description: string | null;
-  status: "CURRENT" | "UPCOMING" | "COMPLETED";
-  ratings: { rating: number }[];
-  _count: { discussionQuestions: number };
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-function avgRating(ratings: { rating: number }[]) {
-  if (!ratings.length) return null;
-  return ratings.reduce((s, r) => s + r.rating, 0) / ratings.length;
-}
-
-function Stars({ val }: { val: number }) {
+function Stars({ value }: { value: number }) {
   return (
-    <span>
+    <span className="inline-flex gap-0.5">
       {[1, 2, 3, 4, 5].map((s) => (
-        <span key={s} style={{ color: s <= Math.round(val) ? "var(--accent)" : "var(--border)" }}>
-          ★
+        <span key={s} className="text-sm" style={{ color: s <= Math.round(value) ? "var(--accent)" : "var(--border)" }}>
+          &#9733;
         </span>
       ))}
-      <span className="ml-1 text-xs" style={{ color: "var(--muted)" }}>
-        {val.toFixed(1)}
-      </span>
     </span>
   );
 }
 
-const TABS = ["ALL", "CURRENT", "UPCOMING", "COMPLETED"] as const;
-type Tab = (typeof TABS)[number];
-
-const BADGE_MAP: Record<string, string> = {
-  CURRENT: "badge-current",
-  UPCOMING: "badge-upcoming",
-  COMPLETED: "badge-completed",
-};
+type BookStatus = "all" | "current" | "completed" | "upcoming";
+const statusTabs: { key: BookStatus; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "current", label: "Current" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "completed", label: "Completed" },
+];
 
 export default function BooksPage() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [tab, setTab] = useState<Tab>("ALL");
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    author: "",
-    genre: "",
-    description: "",
-    coverUrl: "",
-    status: "UPCOMING",
-    libbySUrl: "",
-    kindleUrl: "",
-    amazonUrl: "",
-    bookshopUrl: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [memberName, setMemberName] = useState<string | null>(null);
+  const [tab, setTab] = useState<BookStatus>("all");
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ title: "", author: "", genre: "", coverUrl: "", libbyUrl: "", amazonUrl: "", kindleUrl: "", bookshopUrl: "" });
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => d.authenticated && setMemberName(d.name));
-    loadBooks();
-  }, []);
+  const url = tab === "all" ? "/api/books" : `/api/books?status=${tab}`;
+  const { data: books } = useSWR(url, fetcher);
 
-  const loadBooks = () => {
-    setLoading(true);
-    fetch("/api/books")
-      .then((r) => r.json())
-      .then((data) => {
-        setBooks(Array.isArray(data) ? data : []);
-        setLoading(false);
-      });
-  };
-
-  const filtered =
-    tab === "ALL" ? books : books.filter((b) => b.status === tab);
-
-  const handleAddBook = async (e: React.FormEvent) => {
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setSubmitting(true);
     await fetch("/api/books", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setSaving(false);
-    setShowForm(false);
-    setForm({
-      title: "",
-      author: "",
-      genre: "",
-      description: "",
-      coverUrl: "",
-      status: "UPCOMING",
-      libbySUrl: "",
-      kindleUrl: "",
-      amazonUrl: "",
-      bookshopUrl: "",
-    });
-    loadBooks();
-  };
+    setForm({ title: "", author: "", genre: "", coverUrl: "", libbyUrl: "", amazonUrl: "", kindleUrl: "", bookshopUrl: "" });
+    setShowAdd(false);
+    setSubmitting(false);
+    mutate(url);
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
           Books
         </h1>
-        {memberName && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="btn-primary"
-          >
-            {showForm ? "Cancel" : "+ Add Book"}
-          </button>
-        )}
+        <button className="btn-primary text-sm" onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? "Cancel" : "Add Book"}
+        </button>
       </div>
 
-      {/* Add Book Form */}
-      {showForm && (
-        <div className="card">
-          <h2 className="text-lg font-bold mb-4" style={{ color: "var(--primary)" }}>
-            Add a Book
-          </h2>
-          <form onSubmit={handleAddBook} className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">Title *</label>
-              <input
-                className="input"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
-              />
+      {/* Add book form */}
+      {showAdd && (
+        <form onSubmit={handleAdd} className="card flex flex-col gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Title *</label>
+              <input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Author *</label>
-              <input
-                className="input"
-                value={form.author}
-                onChange={(e) => setForm({ ...form, author: e.target.value })}
-                required
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Author *</label>
+              <input className="input" required value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Genre</label>
-              <input
-                className="input"
-                value={form.genre}
-                onChange={(e) => setForm({ ...form, genre: e.target.value })}
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Genre</label>
+              <input className="input" value={form.genre} onChange={(e) => setForm({ ...form, genre: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Status</label>
-              <select
-                className="input"
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                <option value="UPCOMING">Upcoming</option>
-                <option value="CURRENT">Current</option>
-                <option value="COMPLETED">Completed</option>
-              </select>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Cover Image URL</label>
+              <input className="input" value={form.coverUrl} onChange={(e) => setForm({ ...form, coverUrl: e.target.value })} />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-1">Description</label>
-              <textarea
-                className="input"
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
+          </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium" style={{ color: "var(--primary)" }}>Purchase / Borrow Links</summary>
+            <div className="grid md:grid-cols-2 gap-3 mt-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold">Libby URL</label>
+                <input className="input" value={form.libbyUrl} onChange={(e) => setForm({ ...form, libbyUrl: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold">Amazon URL</label>
+                <input className="input" value={form.amazonUrl} onChange={(e) => setForm({ ...form, amazonUrl: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold">Kindle URL</label>
+                <input className="input" value={form.kindleUrl} onChange={(e) => setForm({ ...form, kindleUrl: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold">Bookshop.org URL</label>
+                <input className="input" value={form.bookshopUrl} onChange={(e) => setForm({ ...form, bookshopUrl: e.target.value })} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Cover Image URL</label>
-              <input
-                className="input"
-                type="url"
-                value={form.coverUrl}
-                onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Libby URL</label>
-              <input
-                className="input"
-                type="url"
-                value={form.libbySUrl}
-                onChange={(e) => setForm({ ...form, libbySUrl: e.target.value })}
-                placeholder="https://libbyapp.com/..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Amazon URL</label>
-              <input
-                className="input"
-                type="url"
-                value={form.amazonUrl}
-                onChange={(e) => setForm({ ...form, amazonUrl: e.target.value })}
-                placeholder="https://amazon.com/..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Kindle URL</label>
-              <input
-                className="input"
-                type="url"
-                value={form.kindleUrl}
-                onChange={(e) => setForm({ ...form, kindleUrl: e.target.value })}
-                placeholder="https://amazon.com/..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Bookshop.org URL</label>
-              <input
-                className="input"
-                type="url"
-                value={form.bookshopUrl}
-                onChange={(e) => setForm({ ...form, bookshopUrl: e.target.value })}
-                placeholder="https://bookshop.org/..."
-              />
-            </div>
-            <div className="md:col-span-2 flex gap-3">
-              <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? "Saving…" : "Add Book"}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowForm(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+          </details>
+          <button type="submit" className="btn-primary text-sm self-start" disabled={submitting}>
+            {submitting ? "Adding..." : "Add Book"}
+          </button>
+        </form>
       )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
-        {TABS.map((t) => (
+        {statusTabs.map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === t
-                ? "border-current font-bold"
-                : "border-transparent hover:opacity-70"
-            }`}
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors bg-transparent cursor-pointer"
             style={{
-              color: tab === t ? "var(--primary)" : "var(--muted)",
-              borderBottomColor: tab === t ? "var(--primary)" : "transparent",
+              borderColor: tab === t.key ? "var(--primary)" : "transparent",
+              color: tab === t.key ? "var(--primary)" : "var(--muted)",
             }}
           >
-            {t === "ALL" ? "All" : t.charAt(0) + t.slice(1).toLowerCase()}
-            <span
-              className="ml-1.5 text-xs rounded-full px-1.5 py-0.5"
-              style={{ background: "var(--border)" }}
-            >
-              {t === "ALL"
-                ? books.length
-                : books.filter((b) => b.status === t).length}
-            </span>
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* Book Grid */}
-      {loading ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          Loading…
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          No books here yet.
+      {/* Book list */}
+      {!books ? (
+        <div className="text-center py-12" style={{ color: "var(--muted)" }}>Loading...</div>
+      ) : !books.length ? (
+        <div className="card text-center py-8">
+          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+          <p className="font-medium" style={{ color: "var(--muted)" }}>No books yet</p>
+          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>Add a book to get started!</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((book) => {
-            const avg = avgRating(book.ratings);
-            return (
-              <Link
-                key={book.id}
-                href={`/books/${book.id}`}
-                className="card hover:shadow-md transition-shadow flex flex-col gap-2"
+        <div className="grid gap-3">
+          {books.map((book: { id: string; title: string; author: string; genre: string; status: string; avg_rating: number; rating_count: number; question_count: number; cover_url: string }) => (
+            <Link
+              key={book.id}
+              href={`/books/${book.id}`}
+              className="card flex items-start gap-4 no-underline transition-shadow hover:shadow-md"
+              style={{ color: "var(--foreground)" }}
+            >
+              <div
+                className="w-16 h-22 rounded flex-shrink-0 flex items-center justify-center overflow-hidden"
+                style={{ background: "var(--border)" }}
               >
-                <div className="flex gap-3">
-                  {book.coverUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={book.coverUrl}
-                      alt={book.title}
-                      className="w-14 h-20 object-cover rounded shadow flex-shrink-0"
-                    />
-                  ) : (
-                    <div
-                      className="w-14 h-20 rounded flex items-center justify-center text-2xl flex-shrink-0"
-                      style={{ background: "var(--border)" }}
-                    >
-                      <svg className="w-6 h-6" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-1">
-                      <h3
-                        className="font-bold leading-tight text-base"
-                        style={{ color: "var(--primary)" }}
-                      >
-                        {book.title}
-                      </h3>
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                      by {book.author}
-                    </p>
-                    <span className={`badge ${BADGE_MAP[book.status]} mt-1`}>
-                      {book.status.charAt(0) + book.status.slice(1).toLowerCase()}
-                    </span>
-                    {avg !== null && (
-                      <div className="mt-1 text-sm">
-                        <Stars val={avg} />
-                      </div>
-                    )}
-                  </div>
+                {book.cover_url ? (
+                  <img src={book.cover_url} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                ) : (
+                  <svg className="w-6 h-6" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-bold text-base">{book.title}</h3>
+                  <span
+                    className="badge flex-shrink-0"
+                    style={{
+                      background: book.status === "current" ? "#ece0e6" : book.status === "completed" ? "#e4e4d2" : "#e8e8d6",
+                      color: book.status === "current" ? "#8f6278" : book.status === "completed" ? "#6e6f3a" : "#7a7b3f",
+                    }}
+                  >
+                    {book.status}
+                  </span>
                 </div>
-                {book.genre && (
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    {book.genre}
-                  </p>
-                )}
-                {book._count.discussionQuestions > 0 && (
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    {book._count.discussionQuestions} discussion question
-                    {book._count.discussionQuestions !== 1 ? "s" : ""}
-                  </p>
-                )}
-              </Link>
-            );
-          })}
+                <p className="text-sm" style={{ color: "var(--muted)" }}>{book.author}</p>
+                {book.genre && <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{book.genre}</p>}
+                <div className="flex items-center gap-3 mt-2">
+                  {Number(book.avg_rating) > 0 && (
+                    <span className="flex items-center gap-1 text-xs">
+                      <Stars value={Number(book.avg_rating)} />
+                      <span style={{ color: "var(--muted)" }}>({book.rating_count})</span>
+                    </span>
+                  )}
+                  {Number(book.question_count) > 0 && (
+                    <span className="text-xs" style={{ color: "var(--muted)" }}>
+                      {book.question_count} question{Number(book.question_count) !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>

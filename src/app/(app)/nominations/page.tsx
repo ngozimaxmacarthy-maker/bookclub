@@ -1,233 +1,120 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR, { mutate } from "swr";
+import { useState } from "react";
 
-interface Nomination {
-  id: string;
-  title: string;
-  author: string;
-  genre: string | null;
-  description: string | null;
-  nominatedBy: string;
-  votes: { voterName: string }[];
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function NominationsPage() {
-  const [nominations, setNominations] = useState<Nomination[]>([]);
-  const [memberName, setMemberName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", author: "", genre: "", description: "" });
-  const [saving, setSaving] = useState(false);
-  const [voting, setVoting] = useState<string | null>(null);
+  const { data: nominations } = useSWR("/api/nominations", fetcher);
+  const { data: me } = useSWR("/api/auth/me", fetcher);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ title: "", author: "", reason: "" });
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => d.authenticated && setMemberName(d.name));
-    loadNominations();
-  }, []);
-
-  const loadNominations = () => {
-    fetch("/api/nominations")
-      .then((r) => r.json())
-      .then((data) => {
-        const sorted = (Array.isArray(data) ? data : []).sort(
-          (a: Nomination, b: Nomination) => b.votes.length - a.votes.length
-        );
-        setNominations(sorted);
-        setLoading(false);
-      });
-  };
-
-  const handleNominate = async (e: React.FormEvent) => {
+  async function handleNominate(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setSubmitting(true);
     await fetch("/api/nominations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setSaving(false);
-    setShowForm(false);
-    setForm({ title: "", author: "", genre: "", description: "" });
-    loadNominations();
-  };
+    setForm({ title: "", author: "", reason: "" });
+    setShowAdd(false);
+    setSubmitting(false);
+    mutate("/api/nominations");
+  }
 
-  const handleVote = async (id: string) => {
-    if (!memberName) return;
-    setVoting(id);
-    await fetch(`/api/nominations/${id}/vote`, { method: "POST" });
-    setVoting(null);
-    loadNominations();
-  };
+  async function toggleVote(nomId: string) {
+    await fetch(`/api/nominations/${nomId}/vote`, { method: "POST" });
+    mutate("/api/nominations");
+  }
+
+  if (!me?.loggedIn) {
+    return (
+      <div className="text-center py-12">
+        <p style={{ color: "var(--muted)" }}>
+          Please <a href="/" className="underline" style={{ color: "var(--primary)" }}>sign in</a> to vote on book nominations.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
-            Book Nominations
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-            Nominate a book and vote for your favorites.
-          </p>
-        </div>
-        {memberName && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="btn-primary"
-          >
-            {showForm ? "Cancel" : "+ Nominate"}
-          </button>
-        )}
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>Book Nominations</h1>
+        <button className="btn-primary text-sm" onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? "Cancel" : "Nominate a Book"}
+        </button>
       </div>
 
-      {!memberName && (
-        <div
-          className="card text-center"
-          style={{ color: "var(--muted)" }}
-        >
-          <a href="/" className="underline" style={{ color: "var(--primary)" }}>
-            Sign in
-          </a>{" "}
-          to nominate books and vote.
-        </div>
+      {showAdd && (
+        <form onSubmit={handleNominate} className="card flex flex-col gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Title *</label>
+              <input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Author *</label>
+              <input className="input" required value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold">Why this book? (optional)</label>
+            <textarea className="input" rows={2} value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+          </div>
+          <button type="submit" className="btn-primary text-sm self-start" disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit Nomination"}
+          </button>
+        </form>
       )}
 
-      {showForm && (
-        <div className="card">
-          <h2 className="text-lg font-bold mb-4" style={{ color: "var(--primary)" }}>
-            Nominate a Book
-          </h2>
-          <form onSubmit={handleNominate} className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">Title *</label>
-              <input
-                className="input"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Author *</label>
-              <input
-                className="input"
-                value={form.author}
-                onChange={(e) => setForm({ ...form, author: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Genre</label>
-              <input
-                className="input"
-                value={form.genre}
-                onChange={(e) => setForm({ ...form, genre: e.target.value })}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-1">
-                Why should we read it?
-              </label>
-              <textarea
-                className="input"
-                rows={2}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? "Nominating…" : "Nominate Book"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          Loading…
-        </div>
-      ) : nominations.length === 0 ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <p>No nominations yet. Be the first!</p>
+      {!nominations ? (
+        <div className="text-center py-12" style={{ color: "var(--muted)" }}>Loading...</div>
+      ) : !nominations.length ? (
+        <div className="card text-center py-8">
+          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="font-medium" style={{ color: "var(--muted)" }}>No nominations yet</p>
+          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>Be the first to nominate a book!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {nominations.map((nom, idx) => {
-            const hasVoted = memberName
-              ? nom.votes.some((v) => v.voterName === memberName)
-              : false;
-            const isTop = idx === 0 && nom.votes.length > 0;
+        <div className="grid gap-3">
+          {nominations.map((nom: { id: string; title: string; author: string; reason: string; nominated_by: string; vote_count: number; voters: string[] }, idx: number) => {
+            const hasVoted = nom.voters?.includes(me?.memberName);
             return (
-              <div
-                key={nom.id}
-                className="card flex gap-4 items-start"
-                style={{
-                  borderColor: isTop ? "var(--accent)" : undefined,
-                  borderWidth: isTop ? "2px" : undefined,
-                }}
-              >
-                {/* Vote button */}
-                <div className="flex flex-col items-center flex-shrink-0">
+              <div key={nom.id} className="card flex items-start gap-4">
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   <button
-                    onClick={() => handleVote(nom.id)}
-                    disabled={!memberName || voting === nom.id}
-                    className={`w-12 h-12 rounded-full flex flex-col items-center justify-center text-lg font-bold transition-all ${
-                      hasVoted
-                        ? "text-white"
-                        : "border-2 hover:opacity-80"
-                    }`}
+                    onClick={() => toggleVote(nom.id)}
+                    className="w-10 h-10 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
                     style={{
+                      borderColor: hasVoted ? "var(--primary)" : "var(--border)",
                       background: hasVoted ? "var(--primary)" : "transparent",
-                      borderColor: "var(--primary)",
-                      color: hasVoted ? "white" : "var(--primary)",
+                      color: hasVoted ? "white" : "var(--muted)",
                     }}
-                    title={hasVoted ? "Remove vote" : "Vote for this book"}
+                    aria-label={hasVoted ? "Remove vote" : "Vote"}
                   >
-                    {voting === nom.id ? "…" : "▲"}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                    </svg>
                   </button>
-                  <span
-                    className="text-sm font-bold mt-1"
-                    style={{ color: "var(--primary)" }}
-                  >
-                    {nom.votes.length}
-                  </span>
+                  <span className="text-sm font-bold" style={{ color: "var(--primary)" }}>{Number(nom.vote_count)}</span>
                 </div>
-
-                {/* Content */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3
-                        className="font-bold text-lg leading-tight"
-                        style={{ color: "var(--primary)" }}
-                      >
-                        {nom.title}
-                      </h3>
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>
-                        by {nom.author}
-                        {nom.genre && ` · ${nom.genre}`}
-                      </p>
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    {idx === 0 && Number(nom.vote_count) > 0 && (
+                      <span className="badge badge-current text-xs">Top pick</span>
+                    )}
+                    <h3 className="font-bold">{nom.title}</h3>
                   </div>
-                  {nom.description && (
-                    <p className="text-sm mt-2" style={{ color: "var(--muted)" }}>
-                      {nom.description}
-                    </p>
-                  )}
-                  <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
-                    Nominated by {nom.nominatedBy}
-                  </p>
-                  {nom.votes.length > 0 && (
-                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-                      Voters: {nom.votes.map((v) => v.voterName).join(", ")}
-                    </p>
-                  )}
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>by {nom.author}</p>
+                  {nom.reason && <p className="text-sm mt-1">{nom.reason}</p>}
+                  <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>Nominated by {nom.nominated_by}</p>
                 </div>
               </div>
             );

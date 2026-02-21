@@ -1,43 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
+  const sql = getDb();
+  const status = req.nextUrl.searchParams.get("status");
 
-  const books = await prisma.book.findMany({
-    where: status ? { status: status as "UPCOMING" | "CURRENT" | "COMPLETED" } : undefined,
-    include: {
-      ratings: true,
-      _count: { select: { discussionQuestions: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  let books;
+  if (status) {
+    books = await sql`
+      SELECT b.*,
+        COALESCE(AVG(r.score), 0) AS avg_rating,
+        COUNT(DISTINCT r.id) AS rating_count,
+        COUNT(DISTINCT dq.id) AS question_count
+      FROM books b
+      LEFT JOIN ratings r ON r.book_id = b.id
+      LEFT JOIN discussion_questions dq ON dq.book_id = b.id
+      WHERE b.status = ${status}
+      GROUP BY b.id
+      ORDER BY b.created_at DESC
+    `;
+  } else {
+    books = await sql`
+      SELECT b.*,
+        COALESCE(AVG(r.score), 0) AS avg_rating,
+        COUNT(DISTINCT r.id) AS rating_count,
+        COUNT(DISTINCT dq.id) AS question_count
+      FROM books b
+      LEFT JOIN ratings r ON r.book_id = b.id
+      LEFT JOIN discussion_questions dq ON dq.book_id = b.id
+      GROUP BY b.id
+      ORDER BY b.created_at DESC
+    `;
+  }
 
   return NextResponse.json(books);
 }
 
 export async function POST(req: NextRequest) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const body = await req.json();
-  const book = await prisma.book.create({
-    data: {
-      title: body.title,
-      author: body.author,
-      genre: body.genre ?? null,
-      coverUrl: body.coverUrl ?? null,
-      description: body.description ?? null,
-      status: body.status ?? "UPCOMING",
-      libbySUrl: body.libbySUrl ?? null,
-      kindleUrl: body.kindleUrl ?? null,
-      amazonUrl: body.amazonUrl ?? null,
-      bookshopUrl: body.bookshopUrl ?? null,
-      reviewLinks: body.reviewLinks ? JSON.stringify(body.reviewLinks) : null,
-    },
-  });
+  const { title, author, genre, coverUrl, libbyUrl, amazonUrl, kindleUrl, bookshopUrl } = body;
 
-  return NextResponse.json(book);
+  if (!title || !author) {
+    return NextResponse.json({ error: "Title and author required" }, { status: 400 });
+  }
+
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO books (title, author, genre, cover_url, libby_url, amazon_url, kindle_url, bookshop_url, added_by)
+    VALUES (${title}, ${author}, ${genre || null}, ${coverUrl || null}, ${libbyUrl || null}, ${amazonUrl || null}, ${kindleUrl || null}, ${bookshopUrl || null}, ${session.memberName})
+    RETURNING *
+  `;
+
+  return NextResponse.json(rows[0], { status: 201 });
 }

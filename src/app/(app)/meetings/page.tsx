@@ -1,260 +1,129 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR, { mutate } from "swr";
 import Link from "next/link";
+import { useState } from "react";
 import { format } from "date-fns";
 
-interface Book {
-  id: string;
-  title: string;
-  author: string;
-}
-
-interface Meeting {
-  id: string;
-  scheduledDate: string | null;
-  location: string | null;
-  hostName: string | null;
-  status: string;
-  book: Book;
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function MeetingsPage() {
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [memberName, setMemberName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const { data: meetings } = useSWR("/api/meetings", fetcher);
+  const { data: books } = useSWR("/api/books", fetcher);
+  const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
-    bookId: "",
-    scheduledDate: "",
-    location: "",
-    locationNotes: "",
-    locationAccessibility: "",
-    hostName: "",
+    bookId: "", scheduledDate: "", location: "", locationAddress: "", locationNotes: "", locationAccessibility: "", hostName: "",
   });
-  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => d.authenticated && setMemberName(d.name));
-    loadData();
-  }, []);
-
-  const loadData = () => {
-    Promise.all([
-      fetch("/api/meetings").then((r) => r.json()),
-      fetch("/api/books").then((r) => r.json()),
-    ]).then(([mData, bData]) => {
-      setMeetings(Array.isArray(mData) ? mData : []);
-      setBooks(Array.isArray(bData) ? bData : []);
-      setLoading(false);
-    });
-  };
-
-  const handleCreate = async (e: React.FormEvent) => {
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setSubmitting(true);
     await fetch("/api/meetings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setSaving(false);
-    setShowForm(false);
-    setForm({
-      bookId: "",
-      scheduledDate: "",
-      location: "",
-      locationNotes: "",
-      locationAccessibility: "",
-      hostName: "",
-    });
-    loadData();
-  };
+    setForm({ bookId: "", scheduledDate: "", location: "", locationAddress: "", locationNotes: "", locationAccessibility: "", hostName: "" });
+    setShowAdd(false);
+    setSubmitting(false);
+    mutate("/api/meetings");
+  }
 
-  const upcoming = meetings.filter(
-    (m) => !m.scheduledDate || new Date(m.scheduledDate) >= new Date()
-  );
-  const past = meetings.filter(
-    (m) => m.scheduledDate && new Date(m.scheduledDate) < new Date()
-  );
-
-  const StatusBadge = ({ status }: { status: string }) => {
-    const map: Record<string, string> = {
-      SCHEDULED: "badge-upcoming",
-      COMPLETED: "badge-completed",
-      CANCELLED: "badge",
-    };
-    return (
-      <span className={`badge ${map[status] ?? "badge"}`}>
-        {status.charAt(0) + status.slice(1).toLowerCase()}
-      </span>
-    );
-  };
-
-  const MeetingCard = ({ m }: { m: Meeting }) => (
-    <Link
-      href={`/meetings/${m.id}`}
-      className="card hover:shadow-md transition-shadow block"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-bold" style={{ color: "var(--primary)" }}>
-            {m.book.title}
-          </h3>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            by {m.book.author}
-          </p>
-        </div>
-        <StatusBadge status={m.status} />
-      </div>
-      {m.scheduledDate && (
-        <p className="text-sm mt-2 font-medium">
-          {format(new Date(m.scheduledDate), "EEEE, MMMM d, yyyy · h:mm a")}
-        </p>
-      )}
-      {m.location && (
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          {m.location}
-        </p>
-      )}
-      {m.hostName && (
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          Host: {m.hostName}
-        </p>
-      )}
-    </Link>
-  );
+  const upcoming = meetings?.filter((m: { scheduled_date: string }) => new Date(m.scheduled_date) >= new Date()) || [];
+  const past = meetings?.filter((m: { scheduled_date: string }) => new Date(m.scheduled_date) < new Date()) || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
-          Meetings
-        </h1>
-        {memberName && (
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-            {showForm ? "Cancel" : "+ Schedule Meeting"}
-          </button>
-        )}
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>Meetings</h1>
+        <button className="btn-primary text-sm" onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? "Cancel" : "Schedule Meeting"}
+        </button>
       </div>
 
-      {showForm && (
-        <div className="card">
-          <h2 className="text-lg font-bold mb-4" style={{ color: "var(--primary)" }}>
-            Schedule a Meeting
-          </h2>
-          <form onSubmit={handleCreate} className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">Book *</label>
-              <select
-                className="input"
-                value={form.bookId}
-                onChange={(e) => setForm({ ...form, bookId: e.target.value })}
-                required
-              >
-                <option value="">Select a book…</option>
-                {books.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.title} by {b.author}
-                  </option>
+      {showAdd && (
+        <form onSubmit={handleAdd} className="card flex flex-col gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Book *</label>
+              <select className="input" required value={form.bookId} onChange={(e) => setForm({ ...form, bookId: e.target.value })}>
+                <option value="">Select a book</option>
+                {books?.map((b: { id: string; title: string }) => (
+                  <option key={b.id} value={b.id}>{b.title}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Date & Time</label>
-              <input
-                type="datetime-local"
-                className="input"
-                value={form.scheduledDate}
-                onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })}
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Date & Time *</label>
+              <input className="input" type="datetime-local" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Location</label>
-              <input
-                className="input"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="123 Main St or Zoom link"
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Location Name</label>
+              <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Host</label>
-              <input
-                className="input"
-                value={form.hostName}
-                onChange={(e) => setForm({ ...form, hostName: e.target.value })}
-                placeholder="Host name"
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Address</label>
+              <input className="input" value={form.locationAddress} onChange={(e) => setForm({ ...form, locationAddress: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Location Notes</label>
-              <input
-                className="input"
-                value={form.locationNotes}
-                onChange={(e) => setForm({ ...form, locationNotes: e.target.value })}
-                placeholder="Parking info, buzzer code, etc."
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Location Notes</label>
+              <input className="input" value={form.locationNotes} onChange={(e) => setForm({ ...form, locationNotes: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Accessibility</label>
-              <input
-                className="input"
-                value={form.locationAccessibility}
-                onChange={(e) =>
-                  setForm({ ...form, locationAccessibility: e.target.value })
-                }
-                placeholder="Wheelchair accessible, elevator, etc."
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Accessibility</label>
+              <input className="input" value={form.locationAccessibility} onChange={(e) => setForm({ ...form, locationAccessibility: e.target.value })} />
             </div>
-            <div className="md:col-span-2">
-              <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? "Saving…" : "Create Meeting"}
-              </button>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold">Host</label>
+              <input className="input" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} />
             </div>
-          </form>
-        </div>
+          </div>
+          <button type="submit" className="btn-primary text-sm self-start" disabled={submitting}>
+            {submitting ? "Scheduling..." : "Schedule Meeting"}
+          </button>
+        </form>
       )}
 
-      {loading ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          Loading…
-        </div>
-      ) : (
-        <div className="space-y-8">
-          <section>
-            <h2 className="text-lg font-bold mb-3" style={{ color: "var(--primary)" }}>
-              Upcoming
-            </h2>
-            {upcoming.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                No upcoming meetings.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {upcoming.map((m) => (
-                  <MeetingCard key={m.id} m={m} />
-                ))}
-              </div>
-            )}
-          </section>
+      {/* Upcoming */}
+      <section>
+        <h2 className="text-lg font-bold font-serif mb-3" style={{ color: "var(--foreground)" }}>Upcoming</h2>
+        {!upcoming.length ? (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>No upcoming meetings.</p>
+        ) : (
+          <div className="grid gap-3">
+            {upcoming.map((m: { id: string; book_title: string; scheduled_date: string; location: string; host_name: string }) => (
+              <Link key={m.id} href={`/meetings/${m.id}`} className="card flex flex-col gap-1 no-underline transition-shadow hover:shadow-md" style={{ color: "var(--foreground)" }}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold">{m.book_title || "TBD"}</h3>
+                  <span className="badge badge-upcoming">upcoming</span>
+                </div>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  {format(new Date(m.scheduled_date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                </p>
+                {m.location && <p className="text-sm" style={{ color: "var(--muted)" }}>{m.location}</p>}
+                {m.host_name && <p className="text-xs" style={{ color: "var(--muted)" }}>Hosted by {m.host_name}</p>}
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
-          {past.length > 0 && (
-            <section>
-              <h2 className="text-lg font-bold mb-3" style={{ color: "var(--muted)" }}>
-                Past Meetings
-              </h2>
-              <div className="space-y-3">
-                {past.map((m) => (
-                  <MeetingCard key={m.id} m={m} />
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
+      {/* Past */}
+      {past.length > 0 && (
+        <section>
+          <h2 className="text-lg font-bold font-serif mb-3" style={{ color: "var(--foreground)" }}>Past Meetings</h2>
+          <div className="grid gap-3">
+            {past.map((m: { id: string; book_title: string; scheduled_date: string; location: string }) => (
+              <Link key={m.id} href={`/meetings/${m.id}`} className="card flex flex-col gap-1 no-underline opacity-75" style={{ color: "var(--foreground)" }}>
+                <h3 className="font-bold">{m.book_title || "TBD"}</h3>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  {format(new Date(m.scheduled_date), "MMMM d, yyyy")}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

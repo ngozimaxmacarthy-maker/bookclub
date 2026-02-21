@@ -1,319 +1,140 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR, { mutate } from "swr";
+import { useState } from "react";
+import { format } from "date-fns";
 
-interface HostEntry {
-  id: string;
-  memberName: string;
-  order: number;
-  optOut: boolean;
-  lastHostedAt: string | null;
-  member: { name: string; createdAt: string };
-}
-
-interface Member {
-  id: string;
-  name: string;
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function HostsPage() {
-  const [hosts, setHosts] = useState<HostEntry[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [memberName, setMemberName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editList, setEditList] = useState<
-    { memberName: string; order: number; optOut: boolean }[]
-  >([]);
+  const { data: hosts } = useSWR("/api/hosts", fetcher);
+  const [newName, setNewName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => d.authenticated && setMemberName(d.name));
-    loadData();
-  }, []);
+  async function addHost(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setSubmitting(true);
+    await fetch("/api/hosts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberName: newName.trim() }),
+    });
+    setNewName("");
+    setSubmitting(false);
+    mutate("/api/hosts");
+  }
 
-  const loadData = () => {
-    fetch("/api/hosts")
-      .then((r) => r.json())
-      .then(({ hosts: h, members: m }) => {
-        setHosts(Array.isArray(h) ? h : []);
-        setMembers(Array.isArray(m) ? m : []);
-        setLoading(false);
-      });
-  };
-
-  const startEditing = () => {
-    // Merge members into rotation (adding any not yet in rotation)
-    const existingNames = hosts.map((h) => h.memberName);
-    const missing = members
-      .filter((m) => !existingNames.includes(m.name))
-      .map((m, i) => ({
-        memberName: m.name,
-        order: hosts.length + i + 1,
-        optOut: false,
-      }));
-
-    setEditList([
-      ...hosts.map((h) => ({
-        memberName: h.memberName,
-        order: h.order,
-        optOut: h.optOut,
-      })),
-      ...missing,
-    ]);
-    setEditing(true);
-  };
-
-  const saveRotation = async () => {
-    setSaving(true);
+  async function toggleOptOut(host: { id: string; opt_out: boolean }) {
     await fetch("/api/hosts", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rotations: editList }),
+      body: JSON.stringify({ id: host.id, optOut: !host.opt_out }),
     });
-    setSaving(false);
-    setEditing(false);
-    loadData();
-  };
+    mutate("/api/hosts");
+  }
 
-  const moveUp = (idx: number) => {
-    if (idx === 0) return;
-    const updated = [...editList];
-    [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
-    updated.forEach((item, i) => (item.order = i + 1));
-    setEditList(updated);
-  };
+  async function markHosted(hostId: string) {
+    await fetch("/api/hosts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: hostId, lastHostedDate: new Date().toISOString() }),
+    });
+    mutate("/api/hosts");
+  }
 
-  const moveDown = (idx: number) => {
-    if (idx === editList.length - 1) return;
-    const updated = [...editList];
-    [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
-    updated.forEach((item, i) => (item.order = i + 1));
-    setEditList(updated);
-  };
-
-  const toggleOptOut = (idx: number) => {
-    const updated = [...editList];
-    updated[idx] = { ...updated[idx], optOut: !updated[idx].optOut };
-    setEditList(updated);
-  };
-
-  // Who's next to host (first non-opted-out, by order, who hasn't hosted most recently)
-  const activeHosts = hosts.filter((h) => !h.optOut).sort((a, b) => a.order - b.order);
-  const nextHost = activeHosts[0] ?? null;
+  // Determine next host: first non-opted-out member
+  const activeHosts = hosts?.filter((h: { opt_out: boolean }) => !h.opt_out) || [];
+  const nextHostId = activeHosts.length > 0 ? activeHosts[0].id : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
-            Host Rotation
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-            Track whose turn it is to host.
-          </p>
-        </div>
-        {memberName && !editing && (
-          <button onClick={startEditing} className="btn-primary">
-            Edit Rotation
-          </button>
-        )}
-      </div>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>Host Rotation</h1>
 
-      {nextHost && !editing && (
-        <div
-          className="card"
-          style={{ borderColor: "var(--accent)", borderWidth: "2px" }}
-        >
-          <p
-            className="text-xs font-bold uppercase tracking-widest mb-1"
-            style={{ color: "var(--muted)" }}
-          >
-            Next Host
-          </p>
-          <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold"
-              style={{ background: "var(--primary)" }}
-            >
-              {nextHost.memberName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <p className="text-2xl font-bold" style={{ color: "var(--primary)" }}>
-                {nextHost.memberName}
-              </p>
-              {nextHost.lastHostedAt && (
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Last hosted:{" "}
-                  {new Date(nextHost.lastHostedAt).toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          Loading…
-        </div>
-      ) : editing ? (
-        <div className="card">
-          <h2 className="text-lg font-bold mb-4" style={{ color: "var(--primary)" }}>
-            Edit Rotation Order
-          </h2>
-          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-            Drag to reorder (use arrows), and toggle opt-out for members temporarily
-            skipping.
-          </p>
-          <div className="space-y-2">
-            {editList.map((item, idx) => (
-              <div
-                key={item.memberName}
-                className="flex items-center gap-3 p-3 rounded-lg"
-                style={{
-                  background: item.optOut ? "var(--background)" : "var(--card-bg)",
-                  border: "1px solid var(--border)",
-                  opacity: item.optOut ? 0.6 : 1,
-                }}
-              >
-                <span
-                  className="text-sm font-bold w-6 text-center flex-shrink-0"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {idx + 1}
-                </span>
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                  style={{ background: "var(--primary)" }}
-                >
-                  {item.memberName.charAt(0).toUpperCase()}
-                </div>
-                <span
-                  className="flex-1 font-medium"
-                  style={{
-                    textDecoration: item.optOut ? "line-through" : "none",
-                    color: item.optOut ? "var(--muted)" : undefined,
-                  }}
-                >
-                  {item.memberName}
-                </span>
-                <label className="flex items-center gap-1 text-sm cursor-pointer flex-shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={item.optOut}
-                    onChange={() => toggleOptOut(idx)}
-                    className="w-4 h-4"
-                  />
-                  <span style={{ color: "var(--muted)" }}>Opt out</span>
-                </label>
-                <div className="flex flex-col gap-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => moveUp(idx)}
-                    disabled={idx === 0}
-                    className="text-xs px-1 disabled:opacity-30"
-                    style={{ color: "var(--primary)" }}
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => moveDown(idx)}
-                    disabled={idx === editList.length - 1}
-                    className="text-xs px-1 disabled:opacity-30"
-                    style={{ color: "var(--primary)" }}
-                  >
-                    ▼
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={saveRotation} className="btn-primary" disabled={saving}>
-              {saving ? "Saving…" : "Save Rotation"}
-            </button>
-            <button onClick={() => setEditing(false)} className="btn-secondary">
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : hosts.length === 0 ? (
-        <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
-          <p>No host rotation set up yet.</p>
-          {memberName && (
-            <button onClick={startEditing} className="btn-primary mt-4">
-              Set Up Rotation
-            </button>
-          )}
+      {!hosts ? (
+        <div className="text-center py-12" style={{ color: "var(--muted)" }}>Loading...</div>
+      ) : !hosts.length ? (
+        <div className="card text-center py-8">
+          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+          </svg>
+          <p className="font-medium" style={{ color: "var(--muted)" }}>No members in rotation</p>
+          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>Add members to start the host rotation.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-            Full Rotation
-          </h2>
-          {hosts.map((host, idx) => (
-            <div
-              key={host.id}
-              className="card flex items-center gap-4 py-3"
-              style={{ opacity: host.optOut ? 0.55 : 1 }}
-            >
-              <span
-                className="text-sm font-bold w-5 text-center flex-shrink-0"
-                style={{ color: "var(--muted)" }}
-              >
-                {idx + 1}
-              </span>
+        <div className="grid gap-3">
+          {hosts.map((host: { id: string; member_name: string; opt_out: boolean; last_hosted_date: string; sort_order: number }) => {
+            const isNext = host.id === nextHostId;
+            return (
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                style={{ background: "var(--primary)" }}
+                key={host.id}
+                className="card flex items-center justify-between gap-4"
+                style={{
+                  background: host.opt_out ? "var(--background)" : "var(--card-bg)",
+                  opacity: host.opt_out ? 0.6 : 1,
+                  borderColor: isNext ? "var(--primary)" : "var(--border)",
+                  borderWidth: isNext ? "2px" : "1px",
+                }}
               >
-                {host.memberName.charAt(0).toUpperCase()}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{
+                      background: isNext ? "var(--primary)" : "#ece0e6",
+                      color: isNext ? "white" : "#8f6278",
+                    }}
+                  >
+                    {host.member_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">{host.member_name}</span>
+                      {isNext && <span className="badge badge-current text-xs">Next up</span>}
+                      {host.opt_out && (
+                        <span className="badge text-xs" style={{ background: "var(--border)", color: "var(--muted)" }}>Opted out</span>
+                      )}
+                    </div>
+                    {host.last_hosted_date && (
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>
+                        Last hosted: {format(new Date(host.last_hosted_date), "MMM d, yyyy")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                    onClick={() => toggleOptOut(host)}
+                  >
+                    {host.opt_out ? "Opt in" : "Opt out"}
+                  </button>
+                  {!host.opt_out && (
+                    <button
+                      className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
+                      style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                      onClick={() => markHosted(host.id)}
+                    >
+                      Mark hosted
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <p
-                  className="font-semibold"
-                  style={{
-                    textDecoration: host.optOut ? "line-through" : "none",
-                  }}
-                >
-                  {host.memberName}
-                </p>
-                {host.lastHostedAt && (
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    Last hosted:{" "}
-                    {new Date(host.lastHostedAt).toLocaleDateString("en-US", {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                )}
-              </div>
-              {host.optOut && (
-                <span
-                  className="badge text-xs"
-                  style={{ background: "var(--border)", color: "var(--muted)" }}
-                >
-                  Opted out
-                </span>
-              )}
-              {idx === 0 && !host.optOut && (
-                <span
-                  className="badge text-xs"
-                  style={{ background: "#ece0e6", color: "#8f6278" }}
-                >
-                  Next up
-                </span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Add member form */}
+      <form onSubmit={addHost} className="card flex gap-3 items-end">
+        <div className="flex flex-col gap-1 flex-1">
+          <label className="text-sm font-semibold">Add Member to Rotation</label>
+          <input className="input" placeholder="Member name" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+        </div>
+        <button type="submit" className="btn-primary text-sm" disabled={submitting}>
+          {submitting ? "Adding..." : "Add"}
+        </button>
+      </form>
     </div>
   );
 }
