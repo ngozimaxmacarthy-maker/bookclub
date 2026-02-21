@@ -112,12 +112,12 @@ export default function MeetingsPage() {
       </div>
       {m.scheduledDate && (
         <p className="text-sm mt-2 font-medium">
-          📅 {format(new Date(m.scheduledDate), "EEEE, MMMM d, yyyy · h:mm a")}
+          {format(new Date(m.scheduledDate), "EEEE, MMMM d, yyyy · h:mm a")}
         </p>
       )}
       {m.location && (
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          📍 {m.location}
+          {m.location}
         </p>
       )}
       {m.hostName && (
@@ -131,7 +131,7 @@ export default function MeetingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold" style={{ color: "var(--primary)" }}>
+        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
           Meetings
         </h1>
         {memberName && (

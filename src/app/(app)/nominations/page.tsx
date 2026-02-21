@@ -66,7 +66,7 @@ export default function NominationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: "var(--primary)" }}>
+          <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
             Book Nominations
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
@@ -88,7 +88,7 @@ export default function NominationsPage() {
           className="card text-center"
           style={{ color: "var(--muted)" }}
         >
-          <a href="/login" className="underline" style={{ color: "var(--primary)" }}>
+          <a href="/" className="underline" style={{ color: "var(--primary)" }}>
             Sign in
           </a>{" "}
           to nominate books and vote.
@@ -153,7 +153,7 @@ export default function NominationsPage() {
         </div>
       ) : nominations.length === 0 ? (
         <div className="text-center py-10" style={{ color: "var(--muted)" }}>
-          <div className="text-5xl mb-3">🗳️</div>
+          <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p>No nominations yet. Be the first!</p>
         </div>
       ) : (
@@ -207,7 +207,7 @@ export default function NominationsPage() {
                         className="font-bold text-lg leading-tight"
                         style={{ color: "var(--primary)" }}
                       >
-                        {isTop && "🏆 "}{nom.title}
+                        {nom.title}
                       </h3>
                       <p className="text-sm" style={{ color: "var(--muted)" }}>
                         by {nom.author}

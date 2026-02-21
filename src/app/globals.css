@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme inline {
+  --font-sans: 'Nunito', 'Nunito Fallback', sans-serif;
+  --font-serif: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif;
+}
+
 :root {
   --background: #f0ede6;
   --foreground: #3a3330;
@@ -22,7 +27,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-sans);
 }
 
 .btn-primary {

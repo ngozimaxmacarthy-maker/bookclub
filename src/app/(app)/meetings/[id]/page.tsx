@@ -182,7 +182,7 @@ export default function MeetingDetailPage({
           >
             ← All Meetings
           </Link>
-          <h1 className="text-3xl font-bold" style={{ color: "var(--primary)" }}>
+          <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
             {meeting.book.title}
           </h1>
           <p className="text-lg" style={{ color: "var(--muted)" }}>
@@ -318,7 +318,7 @@ export default function MeetingDetailPage({
               <p className="text-sm font-semibold" style={{ color: "var(--muted)" }}>
                 Location
               </p>
-              <p className="font-medium">📍 {meeting.location}</p>
+              <p className="font-medium">{meeting.location}</p>
               {meeting.locationNotes && (
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
                   {meeting.locationNotes}
@@ -326,7 +326,7 @@ export default function MeetingDetailPage({
               )}
               {meeting.locationAccessibility && (
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  ♿ {meeting.locationAccessibility}
+                  Accessibility: {meeting.locationAccessibility}
                 </p>
               )}
             </div>

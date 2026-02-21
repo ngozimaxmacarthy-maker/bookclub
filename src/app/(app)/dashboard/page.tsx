@@ -105,7 +105,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* Welcome */}
       <div className="text-center py-4">
-        <h1 className="text-4xl font-bold mb-2" style={{ color: "var(--primary)" }}>
+        <h1 className="text-4xl font-bold mb-2 font-serif" style={{ color: "var(--primary)" }}>
           {`Welcome back, ${memberName}!`}
         </h1>
         <p style={{ color: "var(--muted)" }}>

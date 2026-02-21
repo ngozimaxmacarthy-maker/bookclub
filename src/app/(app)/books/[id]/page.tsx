@@ -54,7 +54,7 @@ function Stars({
           className="star"
           style={{
             color:
-              s <= (hover || value) ? "var(--accent)" : "#d1c4b0",
+              s <= (hover || value) ? "var(--accent)" : "var(--border)",
             cursor: onSelect ? "pointer" : "default",
           }}
           onMouseEnter={() => onSelect && setHover(s)}
@@ -229,7 +229,7 @@ export default function BookDetailPage({
   if (editing) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold" style={{ color: "var(--primary)" }}>
+        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
           Edit Book
         </h1>
         <div className="card">
@@ -312,17 +312,17 @@ export default function BookDetailPage({
           />
         ) : (
           <div
-            className="w-32 h-44 rounded shadow flex items-center justify-center text-5xl flex-shrink-0"
+            className="w-32 h-44 rounded shadow flex items-center justify-center flex-shrink-0"
             style={{ background: "var(--border)" }}
           >
-            📖
+            <svg className="w-10 h-10" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
           </div>
         )}
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div>
               <h1
-                className="text-3xl font-bold leading-tight"
+                className="text-3xl font-bold leading-tight font-serif"
                 style={{ color: "var(--primary)" }}
               >
                 {book.title}
@@ -390,7 +390,7 @@ export default function BookDetailPage({
               rel="noopener noreferrer"
               className="btn-secondary text-sm"
             >
-              📱 Borrow via Libby
+              Borrow via Libby
             </a>
           )}
           {book.amazonUrl && (
@@ -400,7 +400,7 @@ export default function BookDetailPage({
               rel="noopener noreferrer"
               className="btn-secondary text-sm"
             >
-              🛒 Buy on Amazon
+              Buy on Amazon
             </a>
           )}
           {book.kindleUrl && (
@@ -410,7 +410,7 @@ export default function BookDetailPage({
               rel="noopener noreferrer"
               className="btn-secondary text-sm"
             >
-              📲 Buy on Kindle
+              Buy on Kindle
             </a>
           )}
           {book.bookshopUrl && (
@@ -420,7 +420,7 @@ export default function BookDetailPage({
               rel="noopener noreferrer"
               className="btn-secondary text-sm"
             >
-              🏪 Buy on Bookshop.org
+              Buy on Bookshop.org
             </a>
           )}
           {!book.libbySUrl && !book.amazonUrl && !book.kindleUrl && !book.bookshopUrl && (
@@ -491,7 +491,7 @@ export default function BookDetailPage({
                   className="text-sm underline"
                   style={{ color: "var(--primary)" }}
                 >
-                  🔗 {link.label}
+                  {link.label}
                 </a>
               </li>
             ))}

@@ -45,8 +45,7 @@ export default function NavBar() {
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link
           href="/dashboard"
-          className="text-white text-xl font-bold tracking-wide"
-          style={{ fontFamily: "Georgia, serif" }}
+          className="text-white text-xl font-bold tracking-wide font-serif"
         >
           Book Club
         </Link>
@@ -135,7 +134,7 @@ export default function NavBar() {
               </>
             ) : (
               <Link
-                href="/login"
+                href="/"
                 onClick={() => setMenuOpen(false)}
                 className="text-white/80 text-sm px-3 underline"
               >
