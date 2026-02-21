@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { Nunito, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
-import NavBar from "@/components/NavBar";
+
+const _nunito = Nunito({ subsets: ["latin"] });
+const _cormorantGaramond = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Book Club",
@@ -13,10 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen" style={{ background: "var(--background)" }}>
-        <NavBar />
-        <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning className="min-h-screen font-sans" style={{ background: "var(--background)" }}>
+        {children}
       </body>
     </html>
   );

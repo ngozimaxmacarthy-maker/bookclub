@@ -1,77 +1,64 @@
-import { format } from "date-fns";
+import { createEvent, DateArray } from "ics";
 
-interface CalendarEvent {
+interface CalendarEventInput {
   title: string;
   description?: string;
   location?: string;
   start: Date;
-  end?: Date;
+  durationHours?: number;
 }
 
-export function generateICSContent(event: CalendarEvent): string {
-  const startDate = event.start;
-  const endDate = event.end ?? new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
-
-  const formatDate = (d: Date) =>
-    d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-
-  const escape = (s: string) =>
-    s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
-
-  const uid = `${Date.now()}-bookclub@app`;
-
+function toDateArray(d: Date): DateArray {
   return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//BookClub App//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:${uid}`,
-    `DTSTAMP:${formatDate(new Date())}`,
-    `DTSTART:${formatDate(startDate)}`,
-    `DTEND:${formatDate(endDate)}`,
-    `SUMMARY:${escape(event.title)}`,
-    event.description ? `DESCRIPTION:${escape(event.description)}` : "",
-    event.location ? `LOCATION:${escape(event.location)}` : "",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ]
-    .filter(Boolean)
-    .join("\r\n");
+    d.getFullYear(),
+    d.getMonth() + 1,
+    d.getDate(),
+    d.getHours(),
+    d.getMinutes(),
+  ];
 }
 
-export function generateGoogleCalendarUrl(event: CalendarEvent): string {
-  const startDate = event.start;
-  const endDate = event.end ?? new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+export function generateICS(event: CalendarEventInput): string {
+  const { error, value } = createEvent({
+    title: event.title,
+    description: event.description || "",
+    location: event.location || "",
+    start: toDateArray(event.start),
+    duration: { hours: event.durationHours || 2 },
+  });
+  if (error || !value) throw new Error("Failed to generate ICS");
+  return value;
+}
 
-  const formatGCal = (d: Date) =>
-    d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-
+export function googleCalendarUrl(event: CalendarEventInput): string {
+  const start = event.start;
+  const end = new Date(
+    start.getTime() + (event.durationHours || 2) * 60 * 60 * 1000
+  );
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: event.title,
-    dates: `${formatGCal(startDate)}/${formatGCal(endDate)}`,
-    ...(event.description && { details: event.description }),
-    ...(event.location && { location: event.location }),
+    dates: `${fmt(start)}/${fmt(end)}`,
+    details: event.description || "",
+    location: event.location || "",
   });
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  return `https://calendar.google.com/calendar/render?${params}`;
 }
 
-export function generateOutlookCalendarUrl(event: CalendarEvent): string {
-  const startDate = event.start;
-  const endDate = event.end ?? new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
-
+export function outlookCalendarUrl(event: CalendarEventInput): string {
+  const start = event.start;
+  const end = new Date(
+    start.getTime() + (event.durationHours || 2) * 60 * 60 * 1000
+  );
   const params = new URLSearchParams({
     path: "/calendar/action/compose",
     rru: "addevent",
     subject: event.title,
-    startdt: startDate.toISOString(),
-    enddt: endDate.toISOString(),
-    ...(event.description && { body: event.description }),
-    ...(event.location && { location: event.location }),
+    startdt: start.toISOString(),
+    enddt: end.toISOString(),
+    body: event.description || "",
+    location: event.location || "",
   });
-
-  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params}`;
 }

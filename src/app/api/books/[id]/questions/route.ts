@@ -1,58 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const questions = await prisma.discussionQuestion.findMany({
-    where: { bookId: id },
-    orderBy: { createdAt: "asc" },
-  });
-  return NextResponse.json(questions);
-}
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id } = await params;
   const { question } = await req.json();
-
-  if (!question?.trim()) {
+  if (!question || !question.trim()) {
     return NextResponse.json({ error: "Question is required" }, { status: 400 });
   }
 
-  const q = await prisma.discussionQuestion.create({
-    data: { bookId: id, question: question.trim(), submittedBy: member },
-  });
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO discussion_questions (book_id, question, submitted_by)
+    VALUES (${id}, ${question.trim()}, ${session.memberName})
+    RETURNING *
+  `;
 
-  return NextResponse.json(q);
+  return NextResponse.json(rows[0], { status: 201 });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id: bookId } = await params;
-  const { searchParams } = new URL(req.url);
-  const questionId = searchParams.get("questionId");
-
-  if (!questionId) return NextResponse.json({ error: "questionId required" }, { status: 400 });
-
-  const q = await prisma.discussionQuestion.findUnique({ where: { id: questionId } });
-  if (!q || q.submittedBy !== member) {
-    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  await prisma.discussionQuestion.delete({ where: { id: questionId } });
+  const questionId = req.nextUrl.searchParams.get("questionId");
+  if (!questionId) {
+    return NextResponse.json({ error: "questionId required" }, { status: 400 });
+  }
+
+  const sql = getDb();
+  await sql`DELETE FROM discussion_questions WHERE id = ${questionId} AND book_id = ${id}`;
   return NextResponse.json({ ok: true });
 }

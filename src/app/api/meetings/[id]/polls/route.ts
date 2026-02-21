@@ -1,28 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { proposedDates } = await req.json();
-
-  if (!proposedDates || !Array.isArray(proposedDates) || proposedDates.length === 0) {
-    return NextResponse.json({ error: "Proposed dates required" }, { status: 400 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const poll = await prisma.availabilityPoll.create({
-    data: {
-      meetingId: id,
-      proposedDates: JSON.stringify(proposedDates),
-    },
-    include: { responses: true },
-  });
+  const { proposedDate, label } = await req.json();
+  if (!proposedDate) {
+    return NextResponse.json({ error: "Proposed date required" }, { status: 400 });
+  }
 
-  return NextResponse.json(poll);
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO availability_polls (meeting_id, proposed_date, label)
+    VALUES (${id}, ${proposedDate}, ${label || null})
+    RETURNING *
+  `;
+
+  return NextResponse.json(rows[0], { status: 201 });
 }

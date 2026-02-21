@@ -1,29 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { generateICSContent } from "@/lib/calendar";
+import { getDb } from "@/lib/db";
+import { generateICS, googleCalendarUrl, outlookCalendarUrl } from "@/lib/calendar";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const meeting = await prisma.meeting.findUnique({
-    where: { id },
-    include: { book: true },
-  });
+  const format = req.nextUrl.searchParams.get("format") || "ics";
+  const sql = getDb();
 
-  if (!meeting || !meeting.scheduledDate) {
-    return NextResponse.json({ error: "Meeting or date not found" }, { status: 404 });
+  const meetings = await sql`
+    SELECT m.*, b.title AS book_title
+    FROM meetings m
+    LEFT JOIN books b ON b.id = m.book_id
+    WHERE m.id = ${id}
+  `;
+
+  if (!meetings.length) {
+    return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
-  const ics = generateICSContent({
-    title: `Book Club: ${meeting.book.title}`,
-    description: `Book Club meeting to discuss "${meeting.book.title}" by ${meeting.book.author}`,
-    location: meeting.location ?? undefined,
-    start: new Date(meeting.scheduledDate),
-  });
+  const m = meetings[0];
+  const event = {
+    title: `Book Club: ${m.book_title || "Meeting"}`,
+    description: `Book club meeting discussing "${m.book_title}"`,
+    location: m.location || "",
+    start: new Date(m.scheduled_date),
+    durationHours: 2,
+  };
 
-  return new NextResponse(ics, {
+  if (format === "google") {
+    return NextResponse.json({ url: googleCalendarUrl(event) });
+  }
+
+  if (format === "outlook") {
+    return NextResponse.json({ url: outlookCalendarUrl(event) });
+  }
+
+  // Default: ICS download
+  const icsContent = generateICS(event);
+  return new NextResponse(icsContent, {
     headers: {
       "Content-Type": "text/calendar",
       "Content-Disposition": `attachment; filename="bookclub-meeting.ics"`,

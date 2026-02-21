@@ -1,60 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
-  const hosts = await prisma.hostRotation.findMany({
-    include: { member: true },
-    orderBy: { order: "asc" },
-  });
-
-  const members = await prisma.member.findMany({
-    orderBy: { name: "asc" },
-  });
-
-  return NextResponse.json({ hosts, members });
+  const sql = getDb();
+  const hosts = await sql`
+    SELECT * FROM host_rotations ORDER BY sort_order ASC
+  `;
+  return NextResponse.json(hosts);
 }
 
 export async function POST(req: NextRequest) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
-  // Add or update host rotation entry
-  const { memberName, order, optOut } = await req.json();
+  const { memberName } = await req.json();
+  if (!memberName) {
+    return NextResponse.json({ error: "Member name required" }, { status: 400 });
+  }
 
-  const entry = await prisma.hostRotation.upsert({
-    where: { memberName },
-    update: { order, optOut: optOut ?? false },
-    create: { memberName, order, optOut: optOut ?? false },
-  });
+  const sql = getDb();
 
-  return NextResponse.json(entry);
+  // Get max sort order
+  const maxResult = await sql`SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM host_rotations`;
+  const nextOrder = Number(maxResult[0].max_order) + 1;
+
+  const rows = await sql`
+    INSERT INTO host_rotations (member_name, sort_order)
+    VALUES (${memberName}, ${nextOrder})
+    ON CONFLICT (member_name) DO NOTHING
+    RETURNING *
+  `;
+
+  if (!rows.length) {
+    return NextResponse.json({ error: "Member already in rotation" }, { status: 409 });
+  }
+
+  return NextResponse.json(rows[0], { status: 201 });
 }
 
 export async function PUT(req: NextRequest) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
-  const { rotations } = await req.json();
+  const { id, optOut, lastHostedDate } = await req.json();
+  if (!id) {
+    return NextResponse.json({ error: "ID required" }, { status: 400 });
+  }
 
-  // rotations: Array<{ memberName, order, optOut, lastHostedAt? }>
-  const results = await Promise.all(
-    rotations.map((r: { memberName: string; order: number; optOut: boolean; lastHostedAt?: string }) =>
-      prisma.hostRotation.upsert({
-        where: { memberName: r.memberName },
-        update: {
-          order: r.order,
-          optOut: r.optOut,
-          lastHostedAt: r.lastHostedAt ? new Date(r.lastHostedAt) : undefined,
-        },
-        create: {
-          memberName: r.memberName,
-          order: r.order,
-          optOut: r.optOut ?? false,
-        },
-      })
-    )
-  );
+  const sql = getDb();
+  const rows = await sql`
+    UPDATE host_rotations SET
+      opt_out = COALESCE(${optOut !== undefined ? optOut : null}, opt_out),
+      last_hosted_at = COALESCE(${lastHostedDate || null}, last_hosted_at)
+    WHERE id = ${id}
+    RETURNING *
+  `;
 
-  return NextResponse.json(results);
+  return NextResponse.json(rows[0]);
 }

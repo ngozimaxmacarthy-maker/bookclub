@@ -1,38 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getMemberName } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/session";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ratings = await prisma.rating.findMany({
-    where: { bookId: id },
-    orderBy: { createdAt: "asc" },
-  });
-  return NextResponse.json(ratings);
-}
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getMemberName();
-  if (!member) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id } = await params;
-  const { rating, review } = await req.json();
-
-  if (!rating || rating < 1 || rating > 5) {
-    return NextResponse.json({ error: "Rating must be 1-5" }, { status: 400 });
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const r = await prisma.rating.upsert({
-    where: { bookId_memberName: { bookId: id, memberName: member } },
-    update: { rating, review: review ?? null },
-    create: { bookId: id, memberName: member, rating, review: review ?? null },
-  });
+  const { score, review } = await req.json();
+  if (!score || score < 1 || score > 5) {
+    return NextResponse.json({ error: "Score must be 1-5" }, { status: 400 });
+  }
 
-  return NextResponse.json(r);
+  const sql = getDb();
+
+  // Upsert: one rating per member per book
+  const rows = await sql`
+    INSERT INTO ratings (book_id, member_name, score, review)
+    VALUES (${id}, ${session.memberName}, ${score}, ${review || null})
+    ON CONFLICT (book_id, member_name)
+    DO UPDATE SET score = ${score}, review = ${review || null}, created_at = NOW()
+    RETURNING *
+  `;
+
+  return NextResponse.json(rows[0]);
 }

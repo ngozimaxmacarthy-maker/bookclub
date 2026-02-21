@@ -1,31 +1,24 @@
-import { getIronSession, IronSessionData } from "iron-session";
+import { getIronSession, IronSession } from "iron-session";
 import { cookies } from "next/headers";
 
-declare module "iron-session" {
-  interface IronSessionData {
-    memberName?: string;
-    authenticated?: boolean;
-  }
+export interface SessionData {
+  memberName?: string;
+  isLoggedIn?: boolean;
 }
 
-const sessionOptions = {
-  password: process.env.SESSION_SECRET as string,
-  cookieName: "bookclub-session",
-  cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  },
-};
+const FALLBACK_SECRET = "complex_password_at_least_32_characters_long_bookclub";
 
-export async function getSession() {
+export async function getSession(): Promise<IronSession<SessionData>> {
   const cookieStore = await cookies();
-  return getIronSession<IronSessionData>(cookieStore, sessionOptions);
-}
-
-export async function getMemberName(): Promise<string | null> {
-  const session = await getSession();
-  if (session.authenticated && session.memberName) {
-    return session.memberName;
-  }
-  return null;
+  const secret = process.env.SESSION_SECRET;
+  const password = secret && secret.length >= 32 ? secret : FALLBACK_SECRET;
+  return getIronSession<SessionData>(cookieStore, {
+    password,
+    cookieName: "bookclub-session",
+    cookieOptions: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "lax" as const,
+    },
+  });
 }
