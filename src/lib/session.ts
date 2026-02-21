@@ -6,12 +6,14 @@ export interface SessionData {
   isLoggedIn?: boolean;
 }
 
+const FALLBACK_SECRET = "complex_password_at_least_32_characters_long_bookclub";
+
 export async function getSession(): Promise<IronSession<SessionData>> {
   const cookieStore = await cookies();
+  const secret = process.env.SESSION_SECRET;
+  const password = secret && secret.length >= 32 ? secret : FALLBACK_SECRET;
   return getIronSession<SessionData>(cookieStore, {
-    password:
-      process.env.SESSION_SECRET ||
-      "complex_password_at_least_32_characters_long_bookclub",
+    password,
     cookieName: "bookclub-session",
     cookieOptions: {
       secure: process.env.NODE_ENV === "production",
