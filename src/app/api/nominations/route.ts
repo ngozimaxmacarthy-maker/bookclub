@@ -1,43 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/session";
-/* Ranked choice nominations API - queries book_nominations + book_votes tables */
 
+// GET nominations - ranked choice with Borda scoring
 export async function GET(req: NextRequest) {
   const sql = getDb();
   const month = req.nextUrl.searchParams.get("month");
 
-  // Get all distinct rounds
   const rounds = await sql`
     SELECT DISTINCT round_month FROM book_nominations
-    WHERE round_month IS NOT NULL
-    ORDER BY round_month DESC
+    WHERE round_month IS NOT NULL ORDER BY round_month DESC
   `;
 
   const targetMonth = month || rounds[0]?.round_month || null;
-
   if (!targetMonth) {
     return NextResponse.json({ rounds: [], nominations: [], currentRound: null, myVote: null });
   }
 
   const nominations = await sql`
-    SELECT bn.* FROM book_nominations bn
-    WHERE bn.round_month = ${targetMonth}
-    ORDER BY bn.created_at ASC
+    SELECT * FROM book_nominations WHERE round_month = ${targetMonth} ORDER BY created_at ASC
   `;
 
-  // Get all ranked choice votes for this round
   const votes = await sql`
     SELECT * FROM book_votes WHERE round_month = ${targetMonth}
   `;
 
-  // Get the current user's vote
   const session = await getSession();
   const myVote = session.isLoggedIn
     ? votes.find((v: { voter_name: string }) => v.voter_name === session.memberName) || null
     : null;
 
-  // Calculate Borda scores: for N nominations, rank 1 gets N points, rank 2 gets N-1, etc.
   const n = nominations.length;
   const scores: Record<string, number> = {};
   nominations.forEach((nom: { id: string }) => { scores[nom.id] = 0; });
@@ -51,7 +43,6 @@ export async function GET(req: NextRequest) {
     });
   });
 
-  // Get round metadata (voting window)
   const roundInfo = nominations[0] || {};
 
   return NextResponse.json({
@@ -68,6 +59,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
+// POST a new nomination
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session.isLoggedIn) {
@@ -79,15 +71,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Title and author required" }, { status: 400 });
   }
 
-  // Default to current month if no round specified
   const month = roundMonth || new Date().toISOString().slice(0, 7);
-  const votingOpens = new Date();
-  const votingCloses = new Date(votingOpens.getTime() + 14 * 24 * 60 * 60 * 1000); // 2 weeks
+
+  // Voting window: 15th to last day of the month
+  const [y, m] = month.split("-").map(Number);
+  const votingOpens = new Date(y, m - 1, 15);
+  const votingCloses = new Date(y, m, 0, 23, 59, 59); // last day of month
 
   const sql = getDb();
   const rows = await sql`
     INSERT INTO book_nominations (title, author, description, nominated_by, round_month, voting_opens_at, voting_closes_at)
-    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month}, ${votingOpens.toISOString()}, ${votingCloses.toISOString()})
+    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month},
+            ${votingOpens.toISOString()}, ${votingCloses.toISOString()})
     RETURNING *
   `;
 
