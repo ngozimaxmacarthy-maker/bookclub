@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/session";
+/* Ranked choice nominations API - queries book_nominations + book_votes tables */
 
 export async function GET(req: NextRequest) {
   const sql = getDb();
