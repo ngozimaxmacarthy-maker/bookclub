@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
-// GET nominations - ranked choice with Borda scoring
 export async function GET(req: NextRequest) {
   const sql = getDb();
   const month = req.nextUrl.searchParams.get("month");
@@ -59,7 +58,6 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST a new nomination
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session.isLoggedIn) {
@@ -73,10 +71,9 @@ export async function POST(req: NextRequest) {
 
   const month = roundMonth || new Date().toISOString().slice(0, 7);
 
-  // Voting window: 15th to last day of the month
   const [y, m] = month.split("-").map(Number);
   const votingOpens = new Date(y, m - 1, 15);
-  const votingCloses = new Date(y, m, 0, 23, 59, 59); // last day of month
+  const votingCloses = new Date(y, m - 1, 27, 23, 59, 59);
 
   const sql = getDb();
   const rows = await sql`
