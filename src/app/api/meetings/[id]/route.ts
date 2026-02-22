@@ -33,7 +33,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     SELECT * FROM discussion_questions WHERE book_id = ${meetings[0].book_id} ORDER BY created_at ASC
   `;
 
-  return NextResponse.json({ ...meetings[0], polls, questions });
+  const rsvps = await sql`
+    SELECT * FROM meeting_rsvps WHERE meeting_id = ${id} ORDER BY created_at ASC
+  `;
+
+  return NextResponse.json({ ...meetings[0], polls, questions, rsvps });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

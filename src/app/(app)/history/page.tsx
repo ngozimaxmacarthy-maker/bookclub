@@ -91,12 +91,16 @@ export default function HistoryPage() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {books.map((book: { id: string; title: string; author: string; genre: string; avg_rating: number }) => (
+            {books.map((book: { id: string; title: string; author: string; genre: string; avg_rating: number; cover_url: string | null }) => (
               <Link key={book.id} href={`/books/${book.id}`} className="card flex items-center gap-4 no-underline transition-shadow hover:shadow-md" style={{ color: "var(--foreground)" }}>
-                <div className="w-10 h-14 rounded flex items-center justify-center flex-shrink-0" style={{ background: "var(--border)" }}>
+                <div className="w-10 h-14 rounded flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: "var(--border)" }}>
+                  {book.cover_url ? (
+                    <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
+                  ) : (
                   <svg className="w-5 h-5" style={{ color: "var(--muted)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                   </svg>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-semibold text-sm">{book.title}</span>

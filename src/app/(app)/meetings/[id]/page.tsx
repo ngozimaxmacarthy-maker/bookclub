@@ -8,6 +8,14 @@ import Link from "next/link";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+type RsvpStatus = "yes" | "no" | "maybe";
+
+const rsvpOptions: { status: RsvpStatus; label: string; activeColor: string; activeBg: string }[] = [
+  { status: "yes",   label: "Going",         activeColor: "white", activeBg: "var(--accent)" },
+  { status: "maybe", label: "Maybe",         activeColor: "white", activeBg: "#b08a3e" },
+  { status: "no",    label: "Can't make it", activeColor: "white", activeBg: "var(--danger)" },
+];
+
 export default function MeetingDetailPage() {
   const { id } = useParams();
   const { data: meeting, isLoading } = useSWR(id ? `/api/meetings/${id}` : null, fetcher);
@@ -15,9 +23,33 @@ export default function MeetingDetailPage() {
 
   const [newPollDate, setNewPollDate] = useState("");
   const [newPollLabel, setNewPollLabel] = useState("");
+  const [newQuestion, setNewQuestion] = useState("");
+  const [submittingQuestion, setSubmittingQuestion] = useState(false);
+  const [rsvpSaving, setRsvpSaving] = useState(false);
 
   if (isLoading) return <div className="text-center py-12" style={{ color: "var(--muted)" }}>Loading...</div>;
   if (!meeting || meeting.error) return <div className="text-center py-12" style={{ color: "var(--danger)" }}>Meeting not found</div>;
+
+  const myRsvp = meeting.rsvps?.find(
+    (r: { member_name: string }) => r.member_name === me?.memberName
+  )?.status as RsvpStatus | undefined;
+
+  const rsvpCounts = {
+    yes:   meeting.rsvps?.filter((r: { status: string }) => r.status === "yes").length   || 0,
+    maybe: meeting.rsvps?.filter((r: { status: string }) => r.status === "maybe").length || 0,
+    no:    meeting.rsvps?.filter((r: { status: string }) => r.status === "no").length    || 0,
+  };
+
+  async function submitRsvp(status: RsvpStatus) {
+    setRsvpSaving(true);
+    await fetch(`/api/meetings/${id}/rsvp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    setRsvpSaving(false);
+    mutate(`/api/meetings/${id}`);
+  }
 
   async function addPoll(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +73,20 @@ export default function MeetingDetailPage() {
     mutate(`/api/meetings/${id}`);
   }
 
+  async function submitQuestion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newQuestion.trim() || !meeting.book_id) return;
+    setSubmittingQuestion(true);
+    await fetch(`/api/books/${meeting.book_id}/questions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: newQuestion.trim() }),
+    });
+    setNewQuestion("");
+    setSubmittingQuestion(false);
+    mutate(`/api/meetings/${id}`);
+  }
+
   async function openCalendar(fmt: string) {
     if (fmt === "ics") {
       window.open(`/api/meetings/${id}/calendar?format=ics`, "_blank");
@@ -58,41 +104,89 @@ export default function MeetingDetailPage() {
       </Link>
 
       {/* Meeting header */}
-      <div className="card">
-        <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
-          {meeting.book_title || "Meeting"}
-        </h1>
-        {meeting.book_author && (
-          <p className="mt-1" style={{ color: "var(--muted)" }}>by {meeting.book_author}</p>
+      <div className="card flex gap-4">
+        {meeting.book_cover_url && (
+          <img
+            src={meeting.book_cover_url}
+            alt={meeting.book_title}
+            className="w-16 h-24 object-cover rounded flex-shrink-0"
+            style={{ border: "1px solid var(--border)" }}
+          />
         )}
-        <div className="flex flex-col gap-2 mt-4">
-          <p className="text-sm font-medium">
-            {format(new Date(meeting.scheduled_date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-          </p>
-          {meeting.location && <p className="text-sm font-medium">{meeting.location}</p>}
-          {meeting.location_address && (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>{meeting.location_address}</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-3xl font-bold font-serif" style={{ color: "var(--primary)" }}>
+            {meeting.book_title || "Meeting"}
+          </h1>
+          {meeting.book_author && (
+            <p className="mt-1" style={{ color: "var(--muted)" }}>by {meeting.book_author}</p>
           )}
-          {meeting.location_notes && (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>{meeting.location_notes}</p>
-          )}
-          {meeting.location_accessibility && (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Accessibility: {meeting.location_accessibility}
+          <div className="flex flex-col gap-2 mt-4">
+            <p className="text-sm font-medium">
+              {format(new Date(meeting.scheduled_date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
             </p>
-          )}
-          {meeting.host_name && (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Hosted by {meeting.host_name}</p>
-          )}
-        </div>
-
-        {/* Calendar buttons */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button className="btn-secondary text-xs" onClick={() => openCalendar("google")}>Google Calendar</button>
-          <button className="btn-secondary text-xs" onClick={() => openCalendar("outlook")}>Outlook</button>
-          <button className="btn-secondary text-xs" onClick={() => openCalendar("ics")}>Download .ics</button>
+            {meeting.location && <p className="text-sm font-medium">{meeting.location}</p>}
+            {meeting.location_address && (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{meeting.location_address}</p>
+            )}
+            {meeting.location_notes && (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{meeting.location_notes}</p>
+            )}
+            {meeting.host_name && (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>Hosted by {meeting.host_name}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button className="btn-secondary text-xs" onClick={() => openCalendar("google")}>Google Calendar</button>
+            <button className="btn-secondary text-xs" onClick={() => openCalendar("outlook")}>Outlook</button>
+            <button className="btn-secondary text-xs" onClick={() => openCalendar("ics")}>Download .ics</button>
+          </div>
         </div>
       </div>
+
+      {/* RSVP */}
+      {me?.loggedIn && (
+        <div className="card">
+          <h2 className="text-lg font-bold font-serif mb-1" style={{ color: "var(--foreground)" }}>
+            Are you coming?
+          </h2>
+          <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
+            {rsvpCounts.yes} going &middot; {rsvpCounts.maybe} maybe &middot; {rsvpCounts.no} can&apos;t make it
+          </p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {rsvpOptions.map(({ status, label, activeColor, activeBg }) => (
+              <button
+                key={status}
+                disabled={rsvpSaving}
+                onClick={() => submitRsvp(status)}
+                className="px-4 py-1.5 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+                style={{
+                  background: myRsvp === status ? activeBg : "transparent",
+                  color: myRsvp === status ? activeColor : "var(--foreground)",
+                  borderColor: activeBg,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {meeting.rsvps?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {meeting.rsvps.map((r: { id: string; member_name: string; status: RsvpStatus }) => {
+                const opt = rsvpOptions.find((o) => o.status === r.status)!;
+                return (
+                  <span
+                    key={r.id}
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ background: opt.activeBg + "22", color: opt.activeBg }}
+                  >
+                    {r.member_name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Availability polls */}
       <div className="card">
@@ -178,10 +272,11 @@ export default function MeetingDetailPage() {
       </div>
 
       {/* Discussion questions */}
-      {meeting.questions?.length > 0 && (
-        <div className="card">
-          <h2 className="text-lg font-bold font-serif mb-3" style={{ color: "var(--foreground)" }}>Discussion Questions</h2>
-          <ul className="flex flex-col gap-2 list-none p-0">
+      <div className="card">
+        <h2 className="text-lg font-bold font-serif mb-3" style={{ color: "var(--foreground)" }}>Discussion Questions</h2>
+
+        {meeting.questions?.length > 0 ? (
+          <ul className="flex flex-col gap-2 list-none p-0 mb-4">
             {meeting.questions.map((q: { id: string; question: string; submitted_by: string }) => (
               <li key={q.id} className="p-2 rounded" style={{ background: "var(--background)" }}>
                 <p className="text-sm">{q.question}</p>
@@ -189,8 +284,28 @@ export default function MeetingDetailPage() {
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>No questions yet. Add one to get the conversation started!</p>
+        )}
+
+        {me?.loggedIn && (
+          <form onSubmit={submitQuestion} className="flex gap-2 items-end">
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-xs font-semibold">Add a Discussion Question</label>
+              <input
+                className="input text-sm"
+                placeholder="What did you think about..."
+                value={newQuestion}
+                onChange={(e) => setNewQuestion(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary text-sm" disabled={submittingQuestion}>
+              {submittingQuestion ? "Adding..." : "Add"}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

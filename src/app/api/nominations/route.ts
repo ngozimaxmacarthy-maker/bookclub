@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { title, author, description, roundMonth } = await req.json();
+  const { title, author, description, cover_url, roundMonth } = await req.json();
   if (!title || !author) {
     return NextResponse.json({ error: "Title and author required" }, { status: 400 });
   }
@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
 
   const sql = getDb();
   const rows = await sql`
-    INSERT INTO book_nominations (title, author, description, nominated_by, round_month, voting_opens_at, voting_closes_at)
-    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month}, ${votingOpens.toISOString()}, ${votingCloses.toISOString()})
+    INSERT INTO book_nominations (title, author, description, nominated_by, round_month, voting_opens_at, voting_closes_at, cover_url)
+    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month}, ${votingOpens.toISOString()}, ${votingCloses.toISOString()}, ${cover_url || null})
     RETURNING *
   `;
 
