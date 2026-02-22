@@ -23,8 +23,10 @@ export default function NavBar() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => {
+        console.log("[v0] auth/me response:", data);
         if (data.loggedIn) setMemberName(data.memberName);
-      });
+      })
+      .catch((err) => console.log("[v0] auth/me error:", err));
   }, []);
 
   async function handleLogout() {

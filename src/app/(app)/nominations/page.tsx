@@ -34,9 +34,16 @@ export default function NominationsPage() {
 
   const rounds: string[] = data?.rounds || [];
   const nominations: Nomination[] = data?.nominations || [];
-  const currentRound: string | null = data?.currentRound || null;
+  const currentRound: string | null = selectedMonth || data?.currentRound || null;
   const myVotes: { nomination_id: string; rank: number }[] | null = data?.myVotes || null;
   const totalVoters: number = data?.totalVoters || 0;
+
+  // Auto-select current round on first load
+  useEffect(() => {
+    if (!selectedMonth && data?.currentRound) {
+      setSelectedMonth(data.currentRound);
+    }
+  }, [data?.currentRound, selectedMonth]);
 
   const votingOpens = nominations[0]?.voting_opens_at;
   const votingCloses = nominations[0]?.voting_closes_at;
@@ -62,8 +69,8 @@ export default function NominationsPage() {
               onClick={() => { setSelectedMonth(r); setShowRankPanel(false); }}
               className="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
               style={{
-                background: (currentRound === r) ? "var(--primary)" : "var(--card-bg)",
-                color: (currentRound === r) ? "#fff" : "var(--foreground)",
+                background: (selectedMonth === r || (!selectedMonth && data?.currentRound === r)) ? "var(--primary)" : "var(--card-bg)",
+                color: (selectedMonth === r || (!selectedMonth && data?.currentRound === r)) ? "#fff" : "var(--foreground)",
                 border: "1px solid var(--border)",
               }}
             >
@@ -386,16 +393,28 @@ function RankPanel({
               <p className="font-semibold text-sm truncate">{nom.title}</p>
               <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{nom.author}</p>
             </div>
-            <div className="flex flex-col gap-0.5 flex-shrink-0">
-              <button onClick={() => moveUp(idx)} disabled={idx === 0} className="p-0.5 rounded hover:bg-black/10 disabled:opacity-20 transition-opacity" aria-label="Move up">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+            <div className="flex flex-col gap-0 flex-shrink-0">
+              <button
+                onClick={() => moveUp(idx)}
+                disabled={idx === 0}
+                className="p-1.5 rounded-t hover:bg-black/10 disabled:opacity-20 transition-opacity border-none bg-transparent cursor-pointer"
+                style={{ color: "var(--primary)" }}
+                aria-label="Move up"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
               </button>
-              <button onClick={() => moveDown(idx)} disabled={idx === ranked.length - 1} className="p-0.5 rounded hover:bg-black/10 disabled:opacity-20 transition-opacity" aria-label="Move down">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+              <button
+                onClick={() => moveDown(idx)}
+                disabled={idx === ranked.length - 1}
+                className="p-1.5 rounded-b hover:bg-black/10 disabled:opacity-20 transition-opacity border-none bg-transparent cursor-pointer"
+                style={{ color: "var(--primary)" }}
+                aria-label="Move down"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
               </button>
             </div>
-            <svg className="w-4 h-4 flex-shrink-0 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+            <svg className="w-5 h-5 flex-shrink-0 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5M3.75 9.75h16.5M3.75 14.25h16.5M3.75 18.75h16.5" />
             </svg>
           </div>
         ))}
