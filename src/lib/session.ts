@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 export interface SessionData {
   memberName?: string;
   isLoggedIn?: boolean;
+  role?: "admin" | "member";
 }
 
 const FALLBACK_SECRET = "complex_password_at_least_32_characters_long_bookclub";

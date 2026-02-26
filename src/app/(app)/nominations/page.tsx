@@ -133,6 +133,12 @@ export default function NominationsPage() {
   const [rankingDirty, setRankingDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Admin: voting window editor
+  const [showWindowEditor, setShowWindowEditor] = useState(false);
+  const [windowOpens, setWindowOpens] = useState("");
+  const [windowCloses, setWindowCloses] = useState("");
+  const [savingWindow, setSavingWindow] = useState(false);
+
   const nominations: Nomination[] = data?.nominations || [];
   const rounds: string[] = data?.rounds || [];
   const currentRound = data?.currentRound;
@@ -287,32 +293,88 @@ export default function NominationsPage() {
       {/* Voting status banner */}
       {currentRound && (
         <div
-          className="card flex items-center justify-between flex-wrap gap-2"
+          className="card flex flex-col gap-2"
           style={{ background: "var(--background)", borderLeft: "3px solid var(--primary)" }}
         >
-          <div>
-            <p className="font-semibold text-sm">{formatMonth(currentRound)} Round</p>
-            <p className="text-xs" style={{ color: "var(--muted)" }}>
-              {isVotingOpen
-                ? `Voting closes ${votingCloses?.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}`
-                : "Voting is closed"}
-              {" -- "}
-              {totalVoters} vote{totalVoters !== 1 ? "s" : ""} submitted
-            </p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="font-semibold text-sm">{formatMonth(currentRound)} Round</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                {isVotingOpen
+                  ? `Voting closes ${votingCloses?.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}`
+                  : "Voting is closed"}
+                {" -- "}
+                {totalVoters} vote{totalVoters !== 1 ? "s" : ""} submitted
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="text-xs px-2 py-1 rounded-full font-medium"
+                style={{
+                  background: isVotingOpen ? "#e8e8d6" : "var(--border)",
+                  color: isVotingOpen ? "#6b6d3a" : "var(--muted)",
+                }}
+              >
+                {isVotingOpen ? "Open" : "Closed"}
+              </span>
+              {me?.role === "admin" && (
+                <button
+                  className="text-xs px-2 py-1 rounded border bg-transparent cursor-pointer"
+                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  onClick={() => {
+                    setShowWindowEditor((v) => !v);
+                    if (!showWindowEditor && data?.votingOpens) {
+                      setWindowOpens(new Date(data.votingOpens).toISOString().slice(0, 16));
+                      setWindowCloses(data?.votingCloses ? new Date(data.votingCloses).toISOString().slice(0, 16) : "");
+                    }
+                  }}
+                >
+                  Edit window
+                </button>
+              )}
+            </div>
           </div>
-          <span
-            className="text-xs px-2 py-1 rounded-full font-medium"
-            style={{
-              background: isVotingOpen ? "#e8e8d6" : "var(--border)",
-              color: isVotingOpen ? "#6b6d3a" : "var(--muted)",
-            }}
-          >
-            {isVotingOpen ? "Open" : "Closed"}
-          </span>
+
+          {/* Admin: voting window editor */}
+          {showWindowEditor && me?.role === "admin" && (
+            <form
+              className="flex flex-wrap gap-2 items-end pt-2 border-t"
+              style={{ borderColor: "var(--border)" }}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSavingWindow(true);
+                await fetch("/api/nominations/rounds", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    roundMonth: currentRound,
+                    votingOpensAt: new Date(windowOpens).toISOString(),
+                    votingClosesAt: new Date(windowCloses).toISOString(),
+                  }),
+                });
+                setSavingWindow(false);
+                setShowWindowEditor(false);
+                mutate(apiUrl);
+              }}
+            >
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold">Voting Opens</label>
+                <input className="input text-sm" type="datetime-local" value={windowOpens} onChange={(e) => setWindowOpens(e.target.value)} required />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold">Voting Closes</label>
+                <input className="input text-sm" type="datetime-local" value={windowCloses} onChange={(e) => setWindowCloses(e.target.value)} required />
+              </div>
+              <button type="submit" className="btn-primary text-sm" disabled={savingWindow}>
+                {savingWindow ? "Saving..." : "Save"}
+              </button>
+              <button type="button" className="text-sm btn-secondary" onClick={() => setShowWindowEditor(false)}>Cancel</button>
+            </form>
+          )}
         </div>
       )}
 

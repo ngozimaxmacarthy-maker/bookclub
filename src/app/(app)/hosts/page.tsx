@@ -8,8 +8,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function HostsPage() {
   const { data: hosts } = useSWR("/api/hosts", fetcher);
+  const { data: me } = useSWR("/api/auth/me", fetcher);
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const isAdmin = me?.role === "admin";
 
   async function addHost(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +46,25 @@ export default function HostsPage() {
     mutate("/api/hosts");
   }
 
-  // Determine next host: first non-opted-out member
+  async function move(hostId: string, direction: "moveUp" | "moveDown") {
+    await fetch("/api/hosts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: hostId, action: direction }),
+    });
+    mutate("/api/hosts");
+  }
+
+  async function removeHost(hostId: string) {
+    if (!confirm("Remove this member from the rotation?")) return;
+    await fetch("/api/hosts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: hostId }),
+    });
+    mutate("/api/hosts");
+  }
+
   const activeHosts = hosts?.filter((h: { opt_out: boolean }) => !h.opt_out) || [];
   const nextHostId = activeHosts.length > 0 ? activeHosts[0].id : null;
 
@@ -63,7 +84,7 @@ export default function HostsPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {hosts.map((host: { id: string; member_name: string; opt_out: boolean; last_hosted_date: string; sort_order: number }) => {
+          {hosts.map((host: { id: string; member_name: string; opt_out: boolean; last_hosted_at: string; sort_order: number }, idx: number) => {
             const isNext = host.id === nextHostId;
             return (
               <div
@@ -77,6 +98,34 @@ export default function HostsPage() {
                 }}
               >
                 <div className="flex items-center gap-3">
+                  {/* Admin reorder arrows */}
+                  {isAdmin && (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => move(host.id, "moveUp")}
+                        disabled={idx === 0}
+                        className="w-5 h-5 flex items-center justify-center rounded bg-transparent border-none cursor-pointer"
+                        style={{ color: idx === 0 ? "var(--border)" : "var(--muted)" }}
+                        aria-label="Move up"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => move(host.id, "moveDown")}
+                        disabled={idx === hosts.length - 1}
+                        className="w-5 h-5 flex items-center justify-center rounded bg-transparent border-none cursor-pointer"
+                        style={{ color: idx === hosts.length - 1 ? "var(--border)" : "var(--muted)" }}
+                        aria-label="Move down"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
                     style={{
@@ -94,13 +143,14 @@ export default function HostsPage() {
                         <span className="badge text-xs" style={{ background: "var(--border)", color: "var(--muted)" }}>Opted out</span>
                       )}
                     </div>
-                    {host.last_hosted_date && (
+                    {host.last_hosted_at && (
                       <p className="text-xs" style={{ color: "var(--muted)" }}>
-                        Last hosted: {format(new Date(host.last_hosted_date), "MMM d, yyyy")}
+                        Last hosted: {format(new Date(host.last_hosted_at), "MMM d, yyyy")}
                       </p>
                     )}
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <button
                     className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
@@ -116,6 +166,15 @@ export default function HostsPage() {
                       onClick={() => markHosted(host.id)}
                     >
                       Mark hosted
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
+                      style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+                      onClick={() => removeHost(host.id)}
+                    >
+                      Remove
                     </button>
                   )}
                 </div>

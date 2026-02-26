@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
-const navLinks = [
+const memberLinks = [
   { href: "/dashboard", label: "Home" },
   { href: "/books", label: "Books" },
   { href: "/nominations", label: "Vote" },
@@ -13,17 +13,26 @@ const navLinks = [
   { href: "/hosts", label: "Hosts" },
 ];
 
+const adminLinks = [
+  ...memberLinks,
+  { href: "/admin", label: "Admin" },
+];
+
 export default function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [memberName, setMemberName] = useState<string | null>(null);
+  const [role, setRole] = useState<"admin" | "member" | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => {
-        if (data.loggedIn) setMemberName(data.memberName);
+        if (data.loggedIn) {
+          setMemberName(data.memberName);
+          setRole(data.role ?? "member");
+        }
       });
   }, []);
 
@@ -32,13 +41,12 @@ export default function NavBar() {
     router.push("/");
   }
 
+  const navLinks = role === "admin" ? adminLinks : memberLinks;
+
   return (
     <nav style={{ background: "var(--nav-bg)" }}>
       <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
-        <Link
-          href="/dashboard"
-          className="text-white text-xl font-bold tracking-wide font-serif"
-        >
+        <Link href="/dashboard" className="text-white text-xl font-bold tracking-wide font-serif">
           Book Club
         </Link>
 
@@ -74,6 +82,11 @@ export default function NavBar() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                 </svg>
                 <span className="text-white/80 text-sm">{memberName}</span>
+                {role === "admin" && (
+                  <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>
+                    Admin
+                  </span>
+                )}
               </Link>
               <button
                 onClick={handleLogout}
@@ -83,9 +96,7 @@ export default function NavBar() {
               </button>
             </>
           ) : (
-            <Link href="/" className="text-white/80 hover:text-white text-sm underline">
-              Sign in
-            </Link>
+            <Link href="/" className="text-white/80 hover:text-white text-sm underline">Sign in</Link>
           )}
         </div>
 
@@ -133,7 +144,7 @@ export default function NavBar() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                   </svg>
-                  {memberName} &mdash; Profile
+                  {memberName}{role === "admin" && " (Admin)"} &mdash; Profile
                 </Link>
                 <button
                   onClick={() => { setMenuOpen(false); handleLogout(); }}
@@ -143,9 +154,7 @@ export default function NavBar() {
                 </button>
               </div>
             ) : (
-              <Link href="/" onClick={() => setMenuOpen(false)} className="text-white/80 text-sm underline">
-                Sign in
-              </Link>
+              <Link href="/" onClick={() => setMenuOpen(false)} className="text-white/80 text-sm underline">Sign in</Link>
             )}
           </div>
         </div>

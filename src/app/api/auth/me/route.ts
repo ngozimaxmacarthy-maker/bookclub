@@ -6,5 +6,5 @@ export async function GET() {
   if (!session.isLoggedIn || !session.memberName) {
     return NextResponse.json({ loggedIn: false });
   }
-  return NextResponse.json({ loggedIn: true, memberName: session.memberName });
+  return NextResponse.json({ loggedIn: true, memberName: session.memberName, role: session.role ?? "member" });
 }
