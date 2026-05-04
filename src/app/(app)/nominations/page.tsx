@@ -33,13 +33,27 @@ interface Nomination {
   cover_url: string | null;
 }
 
-interface OpenLibraryDoc {
-  key: string;
+interface GoogleBook {
+  id: string;
   title: string;
-  author_name?: string[];
-  cover_i?: number;
-  first_sentence?: { value: string } | string;
+  author: string;
+  description: string;
+  cover_url: string;
 }
+
+function buildMonthOptions() {
+  const options: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = -2; i <= 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    options.push({ value, label });
+  }
+  return options;
+}
+const MONTH_OPTIONS = buildMonthOptions();
+const THIS_MONTH = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
 function formatMonth(month: string) {
   const [y, m] = month.split("-");
@@ -119,11 +133,12 @@ export default function NominationsPage() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", author: "", description: "", cover_url: "" });
+  const [nominateMonth, setNominateMonth] = useState(THIS_MONTH);
   const [submitting, setSubmitting] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<OpenLibraryDoc[]>([]);
+  const [searchResults, setSearchResults] = useState<GoogleBook[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,7 +194,7 @@ export default function NominationsPage() {
     setRankingDirty(true);
   }
 
-  // Open Library search (debounced 300 ms)
+  // Google Books search (debounced 300 ms, server-proxied)
   function handleSearchChange(q: string) {
     setSearchQuery(q);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -191,11 +206,9 @@ export default function NominationsPage() {
     searchDebounceRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const res = await fetch(
-          `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=5&fields=key,title,author_name,cover_i,first_sentence`
-        );
+        const res = await fetch(`/api/books/search?q=${encodeURIComponent(q)}`);
         const json = await res.json();
-        setSearchResults(json.docs || []);
+        setSearchResults(json.items || []);
         setShowDropdown(true);
       } catch {
         // silently fail
@@ -205,20 +218,9 @@ export default function NominationsPage() {
     }, 300);
   }
 
-  function handleSelectSearchResult(doc: OpenLibraryDoc) {
-    const author = doc.author_name?.[0] || "";
-    let description = "";
-    if (doc.first_sentence) {
-      description =
-        typeof doc.first_sentence === "string"
-          ? doc.first_sentence
-          : doc.first_sentence.value;
-    }
-    const cover_url = doc.cover_i
-      ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
-      : "";
-    setForm({ title: doc.title, author, description, cover_url });
-    setSearchQuery(doc.title);
+  function handleSelectSearchResult(book: GoogleBook) {
+    setForm({ title: book.title, author: book.author, description: book.description, cover_url: book.cover_url });
+    setSearchQuery(book.title);
     setShowDropdown(false);
   }
 
@@ -242,13 +244,14 @@ export default function NominationsPage() {
     await fetch("/api/nominations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, roundMonth: currentRound }),
+      body: JSON.stringify({ ...form, roundMonth: nominateMonth }),
     });
     setForm({ title: "", author: "", description: "", cover_url: "" });
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
     setShowAdd(false);
+    setNominateMonth(THIS_MONTH);
     setSubmitting(false);
     mutate(apiUrl);
   }
@@ -424,9 +427,23 @@ export default function NominationsPage() {
       {/* Nominate form */}
       {showAdd && (
         <form onSubmit={handleNominate} className="card flex flex-col gap-3">
+          {/* Month/year picker */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold">Nominate for round</label>
+            <select
+              className="input"
+              value={nominateMonth}
+              onChange={(e) => setNominateMonth(e.target.value)}
+            >
+              {MONTH_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Search box */}
           <div className="flex flex-col gap-1" style={{ position: "relative" }}>
-            <label className="text-sm font-semibold">Search Open Library</label>
+            <label className="text-sm font-semibold">Search Google Books</label>
             <input
               className="input"
               placeholder="Type a title or author..."
@@ -437,9 +454,7 @@ export default function NominationsPage() {
               autoComplete="off"
             />
             {searchLoading && (
-              <p className="text-xs" style={{ color: "var(--muted)" }}>
-                Searching...
-              </p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Searching...</p>
             )}
             {showDropdown && searchResults.length > 0 && (
               <div
@@ -456,37 +471,24 @@ export default function NominationsPage() {
                   overflowY: "auto",
                 }}
               >
-                {searchResults.map((doc) => (
+                {searchResults.map((book) => (
                   <button
-                    key={doc.key}
+                    key={book.id}
                     type="button"
-                    onMouseDown={() => handleSelectSearchResult(doc)}
+                    onMouseDown={() => handleSelectSearchResult(book)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-left"
                     style={{ background: "transparent", border: "none", cursor: "pointer" }}
-                    onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLElement).style.background = "var(--background)")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLElement).style.background = "transparent")
-                    }
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--background)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
                   >
-                    {doc.cover_i ? (
-                      <img
-                        src={`https://covers.openlibrary.org/b/id/${doc.cover_i}-S.jpg`}
-                        alt={doc.title}
-                        className="w-8 h-12 object-cover rounded flex-shrink-0"
-                      />
+                    {book.cover_url ? (
+                      <img src={book.cover_url} alt={book.title} className="w-8 h-12 object-cover rounded flex-shrink-0" />
                     ) : (
-                      <div
-                        className="w-8 h-12 rounded flex-shrink-0"
-                        style={{ background: "var(--border)" }}
-                      />
+                      <div className="w-8 h-12 rounded flex-shrink-0" style={{ background: "var(--border)" }} />
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{doc.title}</p>
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>
-                        {doc.author_name?.[0] || "Unknown author"}
-                      </p>
+                      <p className="text-sm font-semibold truncate">{book.title}</p>
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>{book.author || "Unknown author"}</p>
                     </div>
                   </button>
                 ))}
