@@ -5,7 +5,14 @@ import { getSession } from "@/lib/session";
 export async function GET() {
   const sql = getDb();
   const hosts = await sql`
-    SELECT * FROM host_rotations ORDER BY sort_order ASC
+    SELECT hr.id, hr.member_name, hr.sort_order, hr.opt_out, hr.created_at,
+      GREATEST(hr.last_hosted_at, MAX(m.scheduled_date)) AS last_hosted_at
+    FROM host_rotations hr
+    LEFT JOIN meetings m
+      ON LOWER(m.host_name) = LOWER(hr.member_name)
+      AND m.status = 'COMPLETED'
+    GROUP BY hr.id
+    ORDER BY hr.sort_order ASC
   `;
   return NextResponse.json(hosts);
 }

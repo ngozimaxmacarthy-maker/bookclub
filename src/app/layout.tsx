@@ -9,8 +9,8 @@ const _cormorantGaramond = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Book Club",
-  description: "Our book club app",
+  title: "Booked",
+  description: "Where readers make plans.",
 };
 
 export default function RootLayout({

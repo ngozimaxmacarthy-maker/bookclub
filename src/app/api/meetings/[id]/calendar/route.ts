@@ -20,8 +20,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const m = meetings[0];
   const event = {
-    title: `Book Club: ${m.book_title || "Meeting"}`,
-    description: `Book club meeting discussing "${m.book_title}"`,
+    title: `Booked: ${m.book_title || "Meeting"}`,
+    description: `Booked meeting discussing "${m.book_title}"`,
     location: m.location || "",
     start: new Date(m.scheduled_date),
     durationHours: 2,

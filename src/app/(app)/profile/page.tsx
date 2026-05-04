@@ -54,7 +54,7 @@ export default function ProfilePage() {
             {memberName}
           </h1>
           <p className="text-sm flex items-center gap-2" style={{ color: "var(--muted)" }}>
-            {me?.role === "admin" ? "Administrator" : "Book Club Member"}
+            {me?.role === "admin" ? "Administrator" : "Booked Member"}
             {me?.role === "admin" && (
               <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "var(--primary)", color: "white" }}>
                 Admin
