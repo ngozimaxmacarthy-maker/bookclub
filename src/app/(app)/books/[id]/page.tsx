@@ -115,15 +115,34 @@ export default function BookDetailPage() {
           <p className="text-lg mt-1" style={{ color: "var(--muted)" }}>by {book.author}</p>
           {book.genre && <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{book.genre}</p>}
           <div className="flex items-center gap-2 mt-3">
-            <span
-              className="badge"
-              style={{
-                background: book.status === "current" ? "#ece0e6" : book.status === "completed" ? "#e4e4d2" : "#e8e8d6",
-                color: book.status === "current" ? "#8f6278" : book.status === "completed" ? "#6e6f3a" : "#7a7b3f",
-              }}
-            >
-              {book.status}
-            </span>
+            {me?.role === "admin" ? (
+              <select
+                className="input text-xs py-0.5 px-1 w-auto"
+                value={book.status}
+                onChange={async (e) => {
+                  await fetch(`/api/books/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: e.target.value }),
+                  });
+                  mutate(`/api/books/${id}`);
+                }}
+              >
+                <option value="upcoming">upcoming</option>
+                <option value="current">current</option>
+                <option value="completed">completed</option>
+              </select>
+            ) : (
+              <span
+                className="badge"
+                style={{
+                  background: book.status === "current" ? "#ece0e6" : book.status === "completed" ? "#e4e4d2" : "#e8e8d6",
+                  color: book.status === "current" ? "#8f6278" : book.status === "completed" ? "#6e6f3a" : "#7a7b3f",
+                }}
+              >
+                {book.status}
+              </span>
+            )}
             {Number(book.avg_rating) > 0 && (
               <span className="text-sm" style={{ color: "var(--muted)" }}>
                 {Number(book.avg_rating).toFixed(1)} avg ({book.rating_count} rating{Number(book.rating_count) !== 1 ? "s" : ""})
@@ -173,12 +192,12 @@ export default function BookDetailPage() {
         {book.ratings?.length > 0 && (
           <div className="mt-4 flex flex-col gap-2">
             <h3 className="text-sm font-semibold" style={{ color: "var(--muted)" }}>Ratings</h3>
-            {book.ratings.map((r: { id: string; member_name: string; score: number; review: string }) => (
+            {book.ratings.map((r: { id: string; member_name: string; rating: number; review: string }) => (
               <div key={r.id} className="p-2 rounded" style={{ background: "var(--background)" }}>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold">{r.member_name}</span>
                   <span className="text-xs" style={{ color: "var(--accent)" }}>
-                    {"&#9733;".repeat(r.score)}
+                    {"★".repeat(r.rating || 0)}
                   </span>
                 </div>
                 {r.review && <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{r.review}</p>}

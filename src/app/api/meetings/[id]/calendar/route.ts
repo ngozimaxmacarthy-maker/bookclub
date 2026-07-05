@@ -21,8 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const m = meetings[0];
   const event = {
     title: `Booked: ${m.book_title || "Meeting"}`,
-    description: `Booked meeting discussing "${m.book_title}"`,
-    location: m.location || "",
+    description: m.book_title ? `Booked meeting discussing "${m.book_title}"` : "Booked meeting",
+    location: [m.location, m.location_address].filter(Boolean).join(", "),
     start: new Date(m.scheduled_date),
     durationHours: 2,
   };

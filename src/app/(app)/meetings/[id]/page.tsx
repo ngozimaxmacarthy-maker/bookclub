@@ -21,8 +21,6 @@ export default function MeetingDetailPage() {
   const { data: meeting, isLoading } = useSWR(id ? `/api/meetings/${id}` : null, fetcher);
   const { data: me } = useSWR("/api/auth/me", fetcher);
 
-  const [newPollDate, setNewPollDate] = useState("");
-  const [newPollLabel, setNewPollLabel] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [rsvpSaving, setRsvpSaving] = useState(false);
@@ -51,24 +49,11 @@ export default function MeetingDetailPage() {
     mutate(`/api/meetings/${id}`);
   }
 
-  async function addPoll(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newPollDate) return;
-    await fetch(`/api/meetings/${id}/polls`, {
-      method: "POST",
+  async function setMeetingStatus(status: "COMPLETED" | "PLANNED" | "CANCELLED") {
+    await fetch(`/api/meetings/${id}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ proposedDate: newPollDate, label: newPollLabel }),
-    });
-    setNewPollDate("");
-    setNewPollLabel("");
-    mutate(`/api/meetings/${id}`);
-  }
-
-  async function respondPoll(pollId: string, available: boolean) {
-    await fetch(`/api/polls/${pollId}/respond`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ available }),
+      body: JSON.stringify({ status }),
     });
     mutate(`/api/meetings/${id}`);
   }
@@ -140,6 +125,35 @@ export default function MeetingDetailPage() {
             <button className="btn-secondary text-xs" onClick={() => openCalendar("outlook")}>Outlook</button>
             <button className="btn-secondary text-xs" onClick={() => openCalendar("ics")}>Download .ics</button>
           </div>
+          <div className="flex items-center gap-2 mt-4">
+            <span
+              className="badge text-xs"
+              style={{
+                background: meeting.status === "COMPLETED" ? "#e4e4d2" : meeting.status === "CANCELLED" ? "#f5e5e5" : "#e8e8d6",
+                color: meeting.status === "COMPLETED" ? "#6e6f3a" : meeting.status === "CANCELLED" ? "#b84444" : "#7a7b3f",
+              }}
+            >
+              {(meeting.status || "PLANNED").toLowerCase()}
+            </span>
+            {(me?.role === "admin" || me?.memberName === meeting.host_name) && meeting.status !== "COMPLETED" && (
+              <button
+                className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
+                style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                onClick={() => setMeetingStatus("COMPLETED")}
+              >
+                Mark completed
+              </button>
+            )}
+            {me?.role === "admin" && meeting.status === "COMPLETED" && (
+              <button
+                className="text-xs px-2 py-1 rounded border cursor-pointer bg-transparent"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                onClick={() => setMeetingStatus("PLANNED")}
+              >
+                Reopen
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -187,89 +201,6 @@ export default function MeetingDetailPage() {
           )}
         </div>
       )}
-
-      {/* Availability polls */}
-      <div className="card">
-        <h2 className="text-lg font-bold font-serif mb-3" style={{ color: "var(--foreground)" }}>Availability Poll</h2>
-
-        {meeting.polls?.length > 0 ? (
-          <div className="flex flex-col gap-3 mb-4">
-            {meeting.polls.map((poll: { id: string; proposed_date: string; label: string; responses: { id: string; member_name: string; available: boolean }[] }) => {
-              const yesCount = poll.responses.filter((r) => r.available).length;
-              const myResponse = poll.responses.find((r) => r.member_name === me?.memberName);
-              return (
-                <div key={poll.id} className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <span className="font-semibold text-sm">
-                        {format(new Date(poll.proposed_date), "EEE, MMM d 'at' h:mm a")}
-                      </span>
-                      {poll.label && <span className="text-xs ml-2" style={{ color: "var(--muted)" }}>{poll.label}</span>}
-                    </div>
-                    <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
-                      {yesCount} available
-                    </span>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      className="text-xs px-3 py-1 rounded-full border cursor-pointer transition-colors"
-                      style={{
-                        background: myResponse?.available === true ? "var(--accent)" : "transparent",
-                        color: myResponse?.available === true ? "white" : "var(--foreground)",
-                        borderColor: "var(--accent)",
-                      }}
-                      onClick={() => respondPoll(poll.id, true)}
-                    >
-                      Available
-                    </button>
-                    <button
-                      className="text-xs px-3 py-1 rounded-full border cursor-pointer transition-colors"
-                      style={{
-                        background: myResponse?.available === false ? "var(--danger)" : "transparent",
-                        color: myResponse?.available === false ? "white" : "var(--foreground)",
-                        borderColor: "var(--danger)",
-                      }}
-                      onClick={() => respondPoll(poll.id, false)}
-                    >
-                      Not Available
-                    </button>
-                  </div>
-                  {poll.responses.length > 0 && (
-                    <div className="text-xs mt-2 flex flex-wrap gap-1">
-                      {poll.responses.map((r) => (
-                        <span
-                          key={r.id}
-                          className="px-2 py-0.5 rounded-full"
-                          style={{
-                            background: r.available ? "#e4e4d2" : "#f5e5e5",
-                            color: r.available ? "#6e6f3a" : "#b84444",
-                          }}
-                        >
-                          {r.member_name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>No time options proposed yet.</p>
-        )}
-
-        <form onSubmit={addPoll} className="flex flex-wrap gap-2 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold">Proposed Date/Time</label>
-            <input className="input text-sm" type="datetime-local" value={newPollDate} onChange={(e) => setNewPollDate(e.target.value)} required />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold">Label (optional)</label>
-            <input className="input text-sm" value={newPollLabel} onChange={(e) => setNewPollLabel(e.target.value)} placeholder="e.g. Option A" />
-          </div>
-          <button type="submit" className="btn-primary text-sm">Add Option</button>
-        </form>
-      </div>
 
       {/* Discussion questions */}
       <div className="card">

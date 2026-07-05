@@ -128,13 +128,15 @@ function SortableRankCard({ nId, idx, nom }: { nId: string; idx: number; nom: No
 export default function NominationsPage() {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const apiUrl = selectedMonth ? `/api/nominations?month=${selectedMonth}` : "/api/nominations";
-  const { data } = useSWR(apiUrl, fetcher);
+  const { data } = useSWR(apiUrl, fetcher, { keepPreviousData: true });
   const { data: me } = useSWR("/api/auth/me", fetcher);
 
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", author: "", description: "", cover_url: "" });
   const [nominateMonth, setNominateMonth] = useState(THIS_MONTH);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [promoting, setPromoting] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -228,12 +230,17 @@ export default function NominationsPage() {
     if (!currentRound) return;
     setSaving(true);
     const rankings = myRanking.map((nId, idx) => ({ nomination_id: nId, rank: idx + 1 }));
-    await fetch("/api/nominations/vote", {
+    const res = await fetch("/api/nominations/vote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roundMonth: currentRound, rankings }),
     });
     setSaving(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Could not save your vote. Are you signed in?");
+      return;
+    }
     setRankingDirty(false);
     mutate(apiUrl);
   }
@@ -241,19 +248,43 @@ export default function NominationsPage() {
   async function handleNominate(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    await fetch("/api/nominations", {
+    setFormError("");
+    const res = await fetch("/api/nominations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, roundMonth: nominateMonth }),
     });
+    setSubmitting(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setFormError(err.error || "Could not submit nomination. Are you signed in?");
+      return;
+    }
     setForm({ title: "", author: "", description: "", cover_url: "" });
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
     setShowAdd(false);
     setNominateMonth(THIS_MONTH);
-    setSubmitting(false);
     mutate(apiUrl);
+  }
+
+  async function promoteWinner() {
+    if (!currentRound) return;
+    if (!confirm("Make this book the club's current read? The previous current book will be marked completed.")) return;
+    setPromoting(true);
+    const res = await fetch("/api/nominations/promote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roundMonth: currentRound }),
+    });
+    setPromoting(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || "Could not promote the winner.");
+      return;
+    }
+    window.location.href = `/books/${data.book.id}`;
   }
 
   const nomMap = new Map(nominations.map((n) => [n.id, n]));
@@ -406,15 +437,26 @@ export default function NominationsPage() {
                 {winner.title}
               </h2>
               <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>by {winner.author}</p>
-              <a
-                href={goodreadsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs mt-2 inline-flex items-center gap-1"
-                style={{ color: "var(--primary)" }}
-              >
-                View on Goodreads ↗
-              </a>
+              <div className="flex items-center gap-3 mt-2">
+                <a
+                  href={goodreadsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs inline-flex items-center gap-1"
+                  style={{ color: "var(--primary)" }}
+                >
+                  View on Goodreads ↗
+                </a>
+                {me?.role === "admin" && (
+                  <button
+                    onClick={promoteWinner}
+                    disabled={promoting}
+                    className="btn-primary text-xs"
+                  >
+                    {promoting ? "Adding..." : "Make it our current read"}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="text-center flex-shrink-0">
               <div className="text-3xl">🏆</div>
@@ -529,6 +571,9 @@ export default function NominationsPage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
+          {formError && (
+            <p className="text-sm" style={{ color: "var(--danger)" }}>{formError}</p>
+          )}
           <button
             type="submit"
             className="btn-primary text-sm self-start"

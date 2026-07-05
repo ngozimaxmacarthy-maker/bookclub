@@ -75,10 +75,12 @@ export default function MeetingsPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    // datetime-local gives a naive string; convert via Date so the
+    // member's timezone is captured instead of being read as UTC
     await fetch("/api/meetings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, scheduledDate: new Date(form.scheduledDate).toISOString() }),
     });
     setForm({ bookId: "", scheduledDate: "", location: "", locationAddress: "", locationNotes: "", hostName: "" });
     setAddressQuery("");
