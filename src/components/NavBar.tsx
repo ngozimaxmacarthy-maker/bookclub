@@ -47,7 +47,7 @@ export default function NavBar() {
     <nav style={{ background: "var(--nav-bg)" }}>
       <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
         <Link href="/dashboard" className="text-white text-xl font-bold tracking-wide font-serif">
-          Book Club
+          Booked
         </Link>
 
         {/* Desktop nav */}
