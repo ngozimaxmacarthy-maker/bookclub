@@ -93,13 +93,40 @@ export async function POST(req: NextRequest) {
   }
 
   const month = roundMonth || new Date().toISOString().slice(0, 7);
-  const votingOpens = new Date();
-  const votingCloses = new Date(votingOpens.getTime() + 14 * 24 * 60 * 60 * 1000);
-
   const sql = getDb();
+
+  // Reject duplicate nominations in the same round (they'd split votes)
+  const dupes = await sql`
+    SELECT id FROM book_nominations
+    WHERE round_month = ${month} AND LOWER(title) = LOWER(${title})
+    LIMIT 1
+  `;
+  if (dupes.length) {
+    return NextResponse.json({ error: "That book is already nominated for this round" }, { status: 409 });
+  }
+
+  // Inherit the round's existing voting window so every nomination in a
+  // round shares one deadline; only the first nomination starts the clock
+  const existingWindow = await sql`
+    SELECT voting_opens_at, voting_closes_at FROM book_nominations
+    WHERE round_month = ${month}
+    ORDER BY created_at ASC
+    LIMIT 1
+  `;
+  let votingOpens: string;
+  let votingCloses: string;
+  if (existingWindow.length && existingWindow[0].voting_closes_at) {
+    votingOpens = existingWindow[0].voting_opens_at;
+    votingCloses = existingWindow[0].voting_closes_at;
+  } else {
+    const opens = new Date();
+    votingOpens = opens.toISOString();
+    votingCloses = new Date(opens.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
   const rows = await sql`
     INSERT INTO book_nominations (title, author, description, nominated_by, round_month, voting_opens_at, voting_closes_at, cover_url)
-    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month}, ${votingOpens.toISOString()}, ${votingCloses.toISOString()}, ${cover_url || null})
+    VALUES (${title}, ${author}, ${description || null}, ${session.memberName}, ${month}, ${votingOpens}, ${votingCloses}, ${cover_url || null})
     RETURNING *
   `;
 

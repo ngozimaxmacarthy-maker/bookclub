@@ -70,11 +70,11 @@ export default function SignInPage() {
               className="text-3xl font-bold font-serif"
               style={{ color: "var(--foreground)" }}
             >
-              Book Club
+              Booked
             </h1>
           </div>
           <p style={{ color: "var(--muted)" }} className="text-sm">
-            Sign in with your club password
+            Where readers make plans.
           </p>
         </div>
 

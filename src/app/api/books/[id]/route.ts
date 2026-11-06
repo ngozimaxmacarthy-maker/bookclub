@@ -7,7 +7,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const sql = getDb();
 
   const books = await sql`
-    SELECT b.*,
+    SELECT b.id, b.title, b.author, b.genre, b.cover_url, b.description,
+      LOWER(b.status) AS status,
+      b.libby_url, b.kindle_url, b.amazon_url, b.bookshop_url,
+      b.review_links, b.completed_at, b.created_at,
       COALESCE(AVG(r.rating), 0) AS avg_rating,
       COUNT(DISTINCT r.id) AS rating_count
     FROM books b
@@ -42,19 +45,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { title, author, genre, status, coverUrl, libbyUrl, amazonUrl, kindleUrl, bookshopUrl } = body;
   const sql = getDb();
 
+  const normalizedStatus = status ? status.toUpperCase() : null;
   const rows = await sql`
     UPDATE books SET
       title = COALESCE(${title || null}, title),
       author = COALESCE(${author || null}, author),
       genre = COALESCE(${genre || null}, genre),
-      status = COALESCE(${status || null}, status),
+      status = COALESCE(${normalizedStatus}, status),
       cover_url = COALESCE(${coverUrl || null}, cover_url),
       libby_url = COALESCE(${libbyUrl || null}, libby_url),
       amazon_url = COALESCE(${amazonUrl || null}, amazon_url),
       kindle_url = COALESCE(${kindleUrl || null}, kindle_url),
       bookshop_url = COALESCE(${bookshopUrl || null}, bookshop_url)
     WHERE id = ${id}
-    RETURNING *
+    RETURNING id, title, author, genre, cover_url, description,
+      LOWER(status) AS status,
+      libby_url, kindle_url, amazon_url, bookshop_url,
+      review_links, completed_at, created_at
   `;
 
   return NextResponse.json(rows[0]);

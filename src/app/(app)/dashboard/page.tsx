@@ -42,7 +42,7 @@ export default function DashboardPage() {
           {me?.memberName ? `Welcome back, ${me.memberName}` : "Welcome"}
         </h1>
         <p className="mt-1" style={{ color: "var(--muted)" }}>
-          {"Here's what's happening in your book club."}
+          {"Here's what's happening in Booked."}
         </p>
       </div>
 

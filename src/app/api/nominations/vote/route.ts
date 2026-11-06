@@ -10,16 +10,18 @@ export async function POST(req: NextRequest) {
   }
 
   const { roundMonth, rankings } = await req.json();
-  if (!roundMonth || !Array.isArray(rankings)) {
-    return NextResponse.json({ error: "roundMonth and rankings array required" }, { status: 400 });
+  if (!roundMonth || !Array.isArray(rankings) || rankings.length === 0) {
+    return NextResponse.json({ error: "roundMonth and non-empty rankings array required" }, { status: 400 });
   }
 
   const sql = getDb();
 
-  // Check voting window
+  // Check voting window — read the earliest nomination's window, which is
+  // the same row the nominations GET displays to members
   const round = await sql`
     SELECT voting_closes_at FROM book_nominations
     WHERE round_month = ${roundMonth}
+    ORDER BY created_at ASC
     LIMIT 1
   `;
 

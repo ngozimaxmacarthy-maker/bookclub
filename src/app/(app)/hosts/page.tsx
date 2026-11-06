@@ -11,6 +11,8 @@ export default function HostsPage() {
   const { data: me } = useSWR("/api/auth/me", fetcher);
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
+  const [dateInput, setDateInput] = useState("");
 
   const isAdmin = me?.role === "admin";
 
@@ -43,6 +45,18 @@ export default function HostsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: hostId, lastHostedDate: new Date().toISOString() }),
     });
+    mutate("/api/hosts");
+  }
+
+  async function saveManualDate(hostId: string) {
+    if (!dateInput) return;
+    await fetch("/api/hosts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: hostId, lastHostedDate: new Date(dateInput).toISOString() }),
+    });
+    setEditingDateId(null);
+    setDateInput("");
     mutate("/api/hosts");
   }
 
@@ -143,10 +157,41 @@ export default function HostsPage() {
                         <span className="badge text-xs" style={{ background: "var(--border)", color: "var(--muted)" }}>Opted out</span>
                       )}
                     </div>
-                    {host.last_hosted_at && (
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>
-                        Last hosted: {format(new Date(host.last_hosted_at), "MMM d, yyyy")}
-                      </p>
+                    {editingDateId === host.id ? (
+                      <div className="flex items-center gap-1 mt-1">
+                        <input
+                          type="date"
+                          className="input text-xs py-0.5 px-1"
+                          value={dateInput}
+                          onChange={(e) => setDateInput(e.target.value)}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveManualDate(host.id)}
+                          className="text-xs px-2 py-0.5 rounded bg-transparent border cursor-pointer"
+                          style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+                        >Save</button>
+                        <button
+                          onClick={() => setEditingDateId(null)}
+                          className="text-xs px-2 py-0.5 rounded bg-transparent border cursor-pointer"
+                          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <p className="text-xs" style={{ color: "var(--muted)" }}>
+                          {host.last_hosted_at
+                            ? `Last hosted: ${format(new Date(host.last_hosted_at), "MMM d, yyyy")}`
+                            : "Never hosted"}
+                        </p>
+                        {isAdmin && (
+                          <button
+                            onClick={() => { setEditingDateId(host.id); setDateInput(""); }}
+                            className="text-xs bg-transparent border-none cursor-pointer underline p-0"
+                            style={{ color: "var(--muted)" }}
+                          >edit</button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -19,8 +19,13 @@ export async function POST(req: NextRequest) {
     role = "admin";
   } else {
     // Check DB for member password (admin may have changed it), fall back to env var
-    const settings = await sql`SELECT value FROM app_settings WHERE key = 'member_password'`;
-    const memberPassword = settings[0]?.value || process.env.APP_PASSWORD || "bookclub";
+    let memberPassword = process.env.APP_PASSWORD || "bookclub";
+    try {
+      const settings = await sql`SELECT value FROM app_settings WHERE key = 'member_password'`;
+      if (settings[0]?.value) memberPassword = settings[0].value;
+    } catch {
+      // app_settings table not yet created — use env var / default
+    }
     if (password === memberPassword) {
       role = "member";
     }

@@ -18,10 +18,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Upsert: one rating per member per book
   const rows = await sql`
-    INSERT INTO ratings (book_id, member_name, score, review)
+    INSERT INTO ratings (book_id, member_name, rating, review)
     VALUES (${id}, ${session.memberName}, ${score}, ${review || null})
     ON CONFLICT (book_id, member_name)
-    DO UPDATE SET score = ${score}, review = ${review || null}, created_at = NOW()
+    DO UPDATE SET rating = ${score}, review = ${review || null}, created_at = NOW()
     RETURNING *
   `;
 

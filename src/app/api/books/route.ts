@@ -9,20 +9,26 @@ export async function GET(req: NextRequest) {
   let books;
   if (status) {
     books = await sql`
-      SELECT b.*,
+      SELECT b.id, b.title, b.author, b.genre, b.cover_url, b.description,
+        LOWER(b.status) AS status,
+        b.libby_url, b.kindle_url, b.amazon_url, b.bookshop_url,
+        b.review_links, b.completed_at, b.created_at,
         COALESCE(AVG(r.rating), 0) AS avg_rating,
         COUNT(DISTINCT r.id) AS rating_count,
         COUNT(DISTINCT dq.id) AS question_count
       FROM books b
       LEFT JOIN ratings r ON r.book_id = b.id
       LEFT JOIN discussion_questions dq ON dq.book_id = b.id
-      WHERE b.status = ${status}
+      WHERE b.status = UPPER(${status})
       GROUP BY b.id
       ORDER BY b.created_at DESC
     `;
   } else {
     books = await sql`
-      SELECT b.*,
+      SELECT b.id, b.title, b.author, b.genre, b.cover_url, b.description,
+        LOWER(b.status) AS status,
+        b.libby_url, b.kindle_url, b.amazon_url, b.bookshop_url,
+        b.review_links, b.completed_at, b.created_at,
         COALESCE(AVG(r.rating), 0) AS avg_rating,
         COUNT(DISTINCT r.id) AS rating_count,
         COUNT(DISTINCT dq.id) AS question_count
